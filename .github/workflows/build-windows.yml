@@ -5,6 +5,9 @@ on:
   push:
     tags: ["v*"]
 
+permissions:
+  contents: write
+
 jobs:
   windows:
     runs-on: windows-latest
@@ -24,10 +27,17 @@ jobs:
 
       - run: npm ci
 
+      # Em push de tag v*, cria a Release e anexa .msi e .exe.
+      # Em execução manual, só compila (tagName vazio = sem Release).
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: Organizador de Escalas ${{ github.ref_name }}
+          releaseBody: Instalador Windows (.msi e .exe).
+          releaseDraft: false
+          prerelease: false
           args: --bundles msi,nsis
 
       - uses: actions/upload-artifact@v4
