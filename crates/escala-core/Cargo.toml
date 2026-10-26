@@ -1,0 +1,11 @@
+[package]
+name = "escala-core"
+description = "Domínio e motor de distribuição de escalas (sem IO, sem dependência de UI)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+chrono.workspace = true
+thiserror.workspace = true

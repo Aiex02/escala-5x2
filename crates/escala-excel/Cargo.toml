@@ -1,0 +1,14 @@
+[package]
+name = "escala-excel"
+description = "Importação de funcionários e escalas a partir de planilhas .xlsx"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+escala-core.workspace = true
+calamine.workspace = true
+rust_xlsxwriter.workspace = true
+chrono.workspace = true
+thiserror.workspace = true

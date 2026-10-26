@@ -1,0 +1,13 @@
+[package]
+name = "escala-db"
+description = "Persistência local (SQLite embutido) de clientes, funcionários, turnos e escalas"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+escala-core.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+rusqlite = { workspace = true, features = ["bundled", "chrono"] }

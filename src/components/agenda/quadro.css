@@ -1,0 +1,721 @@
+/* ==========================================================================
+   Agenda: quadro do mês (grade editável, como numa planilha)
+   Usa só os tokens de styles.css, então vale para o tema claro e o escuro.
+   ========================================================================== */
+
+/* O menu do dia fica num portal, fora de .quadro-secao: a hachura vale para os dois. */
+.quadro-secao,
+.quadro-menu {
+  --q-hachura: repeating-linear-gradient(-45deg, transparent 0 6px, var(--linha) 6px 7px);
+}
+
+.quadro-secao {
+  --q-nome: 200px;
+  --q-horas: 64px;
+  --q-dias: 48px;
+  --q-saldo: 68px;
+  --q-acum: 92px;
+  --q-linha: 40px;
+  --q-cabecalho: 46px;
+  --q-rodape: 30px;
+  --q-grupo: 26px;
+  --q-fim: color-mix(in srgb, var(--quadro) 7%, var(--superficie));
+  --q-fim-cab: color-mix(in srgb, var(--quadro) 10%, var(--superficie-2));
+  --q-hoje: color-mix(in srgb, var(--ambar) 12%, var(--superficie));
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* ---------- Legenda ---------- */
+
+.quadro-legenda {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--suave);
+  font-size: 12.5px;
+}
+
+.quadro-legenda li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quadro-legenda-nome {
+  color: var(--tinta-2);
+  font-weight: 560;
+}
+
+.quadro-legenda-horario {
+  font-variant-numeric: tabular-nums;
+}
+
+.quadro-legenda-ajuda {
+  margin-left: auto;
+  color: var(--fraco);
+}
+
+/* Amostra de código: legenda e menu de turnos */
+
+.quadro-amostra {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  min-width: 28px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--cor-turno) calc(var(--tinta-turno) * 1.3), var(--superficie));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cor-turno) 45%, transparent);
+  color: var(--tinta);
+  font-size: 12px;
+  font-weight: 640;
+  font-variant-numeric: tabular-nums;
+}
+
+.quadro-amostra.folga {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--linha-forte);
+  color: var(--fraco);
+  font-weight: 500;
+}
+
+.quadro-amostra.justificada {
+  background: var(--q-hachura), var(--superficie-2);
+  box-shadow: inset 0 0 0 1px var(--linha-forte);
+  color: var(--suave);
+  font-weight: 600;
+}
+
+.quadro-amostra.falta {
+  background: var(--perigo-claro);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--perigo) 45%, transparent);
+  color: var(--perigo);
+  font-weight: 700;
+}
+
+/* Amostra da marca de função faltando (rodapé): contagem em âmbar com canto marcado */
+
+.quadro-amostra-funcao {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  min-width: 28px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--atencao-claro);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--atencao) 55%, transparent);
+  color: var(--atencao);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.quadro-amostra-funcao::after,
+.quadro tfoot > tr > td.sem-funcao::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  border-top: 6px solid var(--atencao);
+  border-left: 6px solid transparent;
+  pointer-events: none;
+}
+
+/* Dia ajustado à mão (fica como está ao reequilibrar): triângulo no canto superior esquerdo da célula */
+
+.quadro-amostra-ajuste {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  min-width: 28px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--superficie);
+  box-shadow: inset 0 0 0 1px var(--linha-forte);
+  color: var(--suave);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.quadro-amostra-ajuste::before,
+.quadro-celula.ajustada::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  border-top: 6px solid var(--quadro);
+  border-right: 6px solid transparent;
+  pointer-events: none;
+}
+
+/* Selo de horas compensadas: "+" (turno mais longo) ou "−" (mais curto), no canto da célula */
+
+.quadro-comp {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  min-width: 12px;
+  height: 12px;
+  padding: 0 2px;
+  border-radius: 3px;
+  background: var(--quadro);
+  color: var(--sobre-quadro);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.quadro-amostra-comp {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.quadro-amostra-comp .quadro-comp {
+  position: static;
+  min-width: 16px;
+  height: 16px;
+  font-size: 12px;
+}
+
+/* ---------- Grade ---------- */
+
+.quadro-rolagem {
+  position: relative;
+  overflow: auto;
+  max-height: max(380px, calc(100vh - 300px));
+  background: var(--superficie);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio-painel);
+  /* A célula focada nunca fica sob o cabeçalho, o nome, os totais ou o rodapé fixos. */
+  scroll-padding: var(--q-cabecalho) calc(var(--q-horas) + var(--q-dias) + var(--q-saldo) + var(--q-acum)) calc(var(--n-rodape, 0) * var(--q-rodape)) var(--q-nome);
+}
+
+.quadro {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.quadro th,
+.quadro td {
+  padding: 0;
+  border-bottom: 1px solid var(--linha);
+  text-align: center;
+}
+
+.quadro tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+/* ---------- Cabeçalho ---------- */
+
+.quadro thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: var(--q-cabecalho);
+  background: var(--superficie-2);
+  border-bottom: 1px solid var(--linha-forte);
+  color: var(--suave);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.quadro-dia {
+  min-width: 38px;
+  border-left: 1px solid var(--linha);
+}
+
+.quadro-dia.fim {
+  background: var(--q-fim-cab);
+}
+
+.quadro-dia-num,
+.quadro-dia-letra {
+  display: block;
+}
+
+.quadro-dia-num {
+  color: var(--tinta);
+  font-size: 14px;
+  font-weight: 640;
+  font-stretch: var(--condensada);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.quadro-dia-letra {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.quadro thead th.hoje {
+  background: var(--ambar);
+  color: #1f1600;
+}
+
+.quadro-dia.hoje .quadro-dia-num,
+.quadro-dia.hoje .quadro-dia-letra {
+  color: #1f1600;
+}
+
+.quadro thead th.quadro-dia.foco:not(.hoje) {
+  background: var(--quadro-claro);
+}
+
+.quadro thead th.quadro-dia.foco:not(.hoje) .quadro-dia-num {
+  color: var(--quadro-texto);
+}
+
+/* Início de semana de apuração */
+.quadro .semana-ini {
+  border-left: 2px solid var(--linha-forte);
+}
+
+/* ---------- Primeira coluna: nome ---------- */
+
+.quadro .quadro-nome {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: var(--q-nome);
+  min-width: var(--q-nome);
+  max-width: var(--q-nome);
+  padding: 0 12px;
+  background: var(--superficie);
+  box-shadow: 1px 0 0 var(--linha-forte);
+  text-align: left;
+}
+
+.quadro thead th.quadro-nome {
+  z-index: 4;
+  background: var(--superficie-2);
+  font-size: 12.5px;
+}
+
+.quadro-linha.foco > .quadro-nome {
+  background: var(--quadro-claro);
+}
+
+.quadro-nome-texto,
+.quadro-cargo {
+  display: block;
+  /* O limite explícito impede que um nome longo alargue a coluna. */
+  max-width: calc(var(--q-nome) - 24px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25;
+}
+
+.quadro-nome-texto {
+  color: var(--tinta);
+  font-size: 13.5px;
+  font-weight: 560;
+}
+
+.quadro-cargo {
+  color: var(--suave);
+  font-size: 11.5px;
+  font-weight: 400;
+}
+
+/* ---------- Grupos por função ---------- */
+
+.quadro tbody tr.quadro-grupo > * {
+  height: var(--q-grupo);
+  background: var(--superficie-2);
+  border-bottom: 1px solid var(--linha);
+}
+
+.quadro tbody tr.quadro-grupo > .quadro-nome {
+  background: var(--superficie-2);
+}
+
+.quadro-grupo-rotulo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: calc(var(--q-nome) - 24px);
+  min-width: 0;
+}
+
+.quadro-grupo-nome {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--tinta-2);
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.quadro-grupo-contagem {
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--superficie);
+  box-shadow: inset 0 0 0 1px var(--linha-forte);
+  color: var(--suave);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* ---------- Células ---------- */
+
+.quadro-celula {
+  position: relative;
+  height: var(--q-linha);
+  min-width: 38px;
+  border-left: 1px solid var(--linha);
+  color: var(--fraco);
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.quadro-celula.fim {
+  background: var(--q-fim);
+}
+
+.quadro-celula.folga.hoje {
+  background: var(--q-hoje);
+}
+
+/* Coluna de hoje: filetes âmbar dos dois lados (também no rodapé). */
+.quadro td.hoje {
+  box-shadow: inset 1px 0 0 var(--ambar), inset -1px 0 0 var(--ambar);
+}
+
+.quadro-celula.turno {
+  background: color-mix(in srgb, var(--cor-turno) calc(var(--tinta-turno) * 1.3), var(--superficie));
+  color: var(--tinta);
+  font-weight: 640;
+}
+
+/* Ausência justificada (férias, atestado): hachurada e apagada, as horas do dia são abonadas. */
+.quadro-celula.justificada {
+  background: var(--q-hachura), var(--superficie-2);
+  color: var(--suave);
+  font-weight: 600;
+}
+
+/* Falta: chama atenção, a pessoa não veio e as horas do dia ficam devendo. */
+.quadro-celula.falta {
+  background: var(--perigo-claro);
+  color: var(--perigo);
+  font-weight: 700;
+}
+
+.quadro-celula.oculto {
+  opacity: 0.3;
+}
+
+.quadro-celula.editavel {
+  cursor: pointer;
+}
+
+.quadro-celula.editavel:hover {
+  background-image: linear-gradient(color-mix(in srgb, var(--tinta) 7%, transparent), color-mix(in srgb, var(--tinta) 7%, transparent));
+}
+
+/* Célula ativa, como numa planilha: sempre visível, também após o clique. */
+.quadro-celula:focus {
+  outline: 2px solid var(--foco);
+  outline-offset: -2px;
+}
+
+.quadro-celula.aberta {
+  background-image: linear-gradient(color-mix(in srgb, var(--foco) 14%, transparent), color-mix(in srgb, var(--foco) 14%, transparent));
+}
+
+/* A hachura continua visível sob o realce de passar o mouse e de célula aberta. */
+.quadro-celula.justificada.editavel:hover {
+  background-image: linear-gradient(color-mix(in srgb, var(--tinta) 7%, transparent), color-mix(in srgb, var(--tinta) 7%, transparent)), var(--q-hachura);
+}
+
+.quadro-celula.justificada.aberta {
+  background-image: linear-gradient(color-mix(in srgb, var(--foco) 14%, transparent), color-mix(in srgb, var(--foco) 14%, transparent)), var(--q-hachura);
+}
+
+.quadro-celula.salvando {
+  cursor: progress;
+  animation: quadro-pulso 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes quadro-pulso {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 0.85;
+  }
+}
+
+.quadro .quadro-vazio {
+  padding: 28px;
+  color: var(--suave);
+}
+
+/* ---------- Totais (colunas à direita) ---------- */
+
+.quadro .quadro-total {
+  position: sticky;
+  z-index: 2;
+  padding: 0 10px;
+  background: var(--superficie);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.quadro thead th.quadro-total {
+  z-index: 4;
+  background: var(--superficie-2);
+  font-size: 12px;
+  text-align: right;
+}
+
+.quadro-horas {
+  right: calc(var(--q-dias) + var(--q-saldo) + var(--q-acum));
+  width: var(--q-horas);
+  min-width: var(--q-horas);
+  box-shadow: -1px 0 0 var(--linha-forte);
+}
+
+.quadro-dias {
+  right: calc(var(--q-saldo) + var(--q-acum));
+  width: var(--q-dias);
+  min-width: var(--q-dias);
+}
+
+.quadro-saldo {
+  right: var(--q-acum);
+  width: var(--q-saldo);
+  min-width: var(--q-saldo);
+  font-weight: 640;
+}
+
+/* Saldo dos meses anteriores mais o do mês */
+.quadro-acumulado {
+  right: 0;
+  width: var(--q-acum);
+  min-width: var(--q-acum);
+  box-shadow: -1px 0 0 var(--linha);
+  font-weight: 700;
+}
+
+.quadro tbody .quadro-total.quadro-acumulado {
+  background: color-mix(in srgb, var(--quadro) 5%, var(--superficie));
+}
+
+.quadro tbody .quadro-total.num {
+  text-align: right;
+  color: var(--tinta-2);
+}
+
+.quadro tbody .quadro-total.saldo-zero {
+  color: var(--sucesso);
+}
+
+.quadro tbody .quadro-total.saldo-negativo {
+  color: var(--atencao);
+}
+
+.quadro tbody .quadro-total.saldo-positivo {
+  color: var(--perigo);
+}
+
+.quadro tbody .quadro-total.texto-fraco {
+  color: var(--fraco);
+}
+
+/* ---------- Rodapé: pessoas por turno em cada dia ---------- */
+
+.quadro tfoot > tr > * {
+  position: sticky;
+  bottom: calc(var(--restantes, 0) * var(--q-rodape));
+  z-index: 3;
+  height: var(--q-rodape);
+  background: var(--superficie-2);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.quadro tfoot > tr > .quadro-nome,
+.quadro tfoot > tr > .quadro-total {
+  z-index: 5;
+  background: var(--superficie-2);
+}
+
+.quadro tfoot > tr:first-child > * {
+  border-top: 1px solid var(--linha-forte);
+}
+
+.quadro tfoot > tr:last-child > * {
+  border-bottom: 0;
+}
+
+.quadro tfoot > tr > td:not(.quadro-total) {
+  border-left: 1px solid var(--linha);
+  color: var(--tinta-2);
+  font-weight: 560;
+}
+
+.quadro tfoot > tr > td.semana-ini {
+  border-left: 2px solid var(--linha-forte);
+}
+
+.quadro tfoot > tr > td.fim {
+  background: var(--q-fim-cab);
+}
+
+.quadro tfoot > tr > td.fechado {
+  color: var(--fraco);
+  font-weight: 400;
+}
+
+/* Falta o mínimo de alguma função no turno: tom de atenção (o vermelho de "abaixo" vence quando os dois valem). */
+.quadro tfoot > tr > td.sem-funcao {
+  background: var(--atencao-claro);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--atencao) 55%, transparent);
+  color: var(--atencao);
+  font-weight: 700;
+}
+
+.quadro tfoot > tr > td.abaixo {
+  background: var(--perigo-claro);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--perigo) 55%, transparent);
+  color: var(--perigo);
+  font-weight: 700;
+}
+
+.quadro-rodape-nome {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: calc(var(--q-nome) - 24px);
+  min-width: 0;
+}
+
+.quadro-rodape-nome .quadro-nome-texto {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+  font-size: 12.5px;
+}
+
+.quadro-rodape-nome .quadro-cargo {
+  flex-shrink: 0;
+}
+
+/* ---------- Menu de turnos ---------- */
+
+.quadro-menu {
+  min-width: 256px;
+}
+
+/* Motivo da ausência justificada, no lugar da lista */
+
+.quadro-motivo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+
+.quadro-motivo-rotulo {
+  color: var(--tinta-2);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.quadro-motivo-dica {
+  color: var(--suave);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.quadro-motivo-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.quadro-menu .opcao {
+  gap: 9px;
+}
+
+.quadro-menu .opcao[aria-checked="true"] {
+  color: var(--tinta);
+  font-weight: 600;
+}
+
+.quadro-menu .opcao-marca {
+  flex-shrink: 0;
+}
+
+.quadro-menu-horario {
+  flex-shrink: 0;
+  color: var(--suave);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.quadro-menu-folga {
+  margin-top: 4px;
+  border-top: 1px solid var(--linha);
+  border-radius: 0 0 6px 6px;
+}
+
+/* ---------- Janelas estreitas: os totais voltam a rolar junto com os dias ---------- */
+
+@media (max-width: 1280px) {
+  .quadro-rolagem {
+    scroll-padding-right: 0;
+  }
+
+  .quadro .quadro-total {
+    right: auto;
+    box-shadow: none;
+  }
+
+  .quadro tbody .quadro-total {
+    position: static;
+  }
+}
+
+/* ---------- Resumo semanal: saldo anterior e acumulado ---------- */
+
+.tabela-horas td.acumulado,
+.tabela-horas th.coluna-acumulado {
+  background: color-mix(in srgb, var(--quadro) 5%, var(--superficie));
+}

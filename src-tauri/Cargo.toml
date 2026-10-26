@@ -1,0 +1,27 @@
+[package]
+name = "escalas-desktop"
+description = "Organizador de escalas de trabalho (app desktop Tauri)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+default-run = "escalas-desktop"
+
+[lib]
+name = "escalas_desktop_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+chrono.workspace = true
+escala-app.workspace = true
+escala-db.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tauri = { version = "2.12", features = [] }
+tauri-plugin-dialog = "2.8"
+
+[dev-dependencies]
+tauri = { version = "2.12", features = ["test"] }
