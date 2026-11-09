@@ -1,0 +1,237 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum InicioSemana {
+  SEGUNDA
+  DOMINGO
+}
+
+enum RegimeLegal {
+  LIVRE
+  EC141
+}
+
+enum Periodo {
+  MANHA
+  TARDE
+  NOITE
+}
+
+model Cliente {
+  id       String   @id @default(cuid())
+  nome     String   @unique
+  criadoEm DateTime @default(now()) @map("criado_em")
+
+  regras         Regras?
+  janelas        JanelaFuncionamento[]
+  turnos         Turno[]
+  funcionarios   Funcionario[]
+  meses          MesGerado[]
+  avisos         AvisoMes[]
+  alocacoes      Alocacao[]
+  previstos      PrevistoSemana[]
+  funcoesMinimas FuncaoMinima[]
+  ajustes        AjusteManual[]
+  diasFechados   DiaFechado[]
+
+  @@map("clientes")
+}
+
+model Regras {
+  clienteId                String       @id @map("cliente_id")
+  cargaSemanalMaxMin       Int          @map("carga_semanal_max_min")
+  jornadaDiariaMaxMin      Int          @map("jornada_diaria_max_min")
+  descansoEntreJornadasMin Int          @map("descanso_entre_jornadas_min")
+  maxDiasConsecutivos      Int          @map("max_dias_consecutivos")
+  inicioSemana             InicioSemana @map("inicio_semana")
+  folgasSemanaisMin        Int          @map("folgas_semanais_min")
+  domingosSeguidosMax      Int          @map("domingos_seguidos_max")
+  regime                   RegimeLegal
+  ec141Publicacao          DateTime?    @map("ec141_publicacao") @db.Date
+  jornadaPadraoMin         Int          @map("jornada_padrao_min")
+  intervaloPadraoMin       Int          @map("intervalo_padrao_min")
+  modelo                   String?
+  permitirHoraExtra        Boolean      @default(true) @map("permitir_hora_extra")
+  horaExtraDiariaMaxMin    Int          @default(120) @map("hora_extra_diaria_max_min")
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@map("regras")
+}
+
+model JanelaFuncionamento {
+  clienteId String @map("cliente_id")
+  /// 0 = segunda … 6 = domingo
+  dia       Int
+  abreMin   Int    @map("abre_min")
+  fechaMin  Int    @map("fecha_min")
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@id([clienteId, dia])
+  @@map("janelas_funcionamento")
+}
+
+model Turno {
+  id            String  @id @default(cuid())
+  clienteId     String  @map("cliente_id")
+  nome          String
+  inicioMin     Int     @map("inicio_min")
+  fimMin        Int     @map("fim_min")
+  intervaloMin  Int     @map("intervalo_min")
+  efetivoMinimo Int     @map("efetivo_minimo")
+  ordem         Int
+  cor           String
+  /// Máscara de bits dos dias (bit 0 = segunda … bit 6 = domingo)
+  diasSemana    Int     @map("dias_semana")
+  arquivado     Boolean @default(false)
+
+  cliente   Cliente    @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  alocacoes Alocacao[]
+
+  @@unique([clienteId, nome])
+  @@map("turnos")
+}
+
+model Funcionario {
+  id              String   @id @default(cuid())
+  clienteId       String   @map("cliente_id")
+  matricula       String
+  nome            String
+  cargo           String?
+  secao           String?
+  ctps            String?
+  cargaSemanalMin Int?     @map("carga_semanal_min")
+  preferencia     Periodo?
+  ativo           Boolean  @default(true)
+  /// Fora das regras de jornada da lei (superior + alta remuneração, ou empregado público)
+  isentoEc141     Boolean  @default(false) @map("isento_ec141")
+
+  cliente   Cliente    @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  ausencias Ausencia[]
+  alocacoes Alocacao[]
+
+  @@unique([clienteId, matricula])
+  @@map("funcionarios")
+}
+
+model Ausencia {
+  id            String   @id @default(cuid())
+  funcionarioId String   @map("funcionario_id")
+  inicio        DateTime @db.Date
+  fim           DateTime @db.Date
+  motivo        String?
+  justificada   Boolean
+
+  funcionario Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+
+  @@index([funcionarioId])
+  @@map("ausencias")
+}
+
+model MesGerado {
+  clienteId String   @map("cliente_id")
+  ano       Int
+  mes       Int
+  geradoEm  DateTime @default(now()) @map("gerado_em")
+
+  cliente Cliente    @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  avisos  AvisoMes[]
+
+  @@id([clienteId, ano, mes])
+  @@map("meses_gerados")
+}
+
+model AvisoMes {
+  id            String    @id @default(cuid())
+  clienteId     String    @map("cliente_id")
+  ano           Int
+  mes           Int
+  tipo          String
+  data          DateTime? @db.Date
+  turnoId       String?   @map("turno_id")
+  funcionarioId String?   @map("funcionario_id")
+  mensagem      String
+
+  cliente   Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  mesGerado MesGerado @relation(fields: [clienteId, ano, mes], references: [clienteId, ano, mes], onDelete: Cascade)
+
+  @@index([clienteId, ano, mes])
+  @@map("avisos_mes")
+}
+
+model Alocacao {
+  id                 String   @id @default(cuid())
+  clienteId          String   @map("cliente_id")
+  funcionarioId      String   @map("funcionario_id")
+  turnoId            String   @map("turno_id")
+  data               DateTime @db.Date
+  inicioMin          Int      @map("inicio_min")
+  fimMin             Int      @map("fim_min")
+  intervaloMin       Int      @map("intervalo_min")
+  minutosTrabalhados Int      @map("minutos_trabalhados")
+  /// "normal" | "compensacao" | "horaExtra"
+  origem             String   @default("normal")
+
+  cliente     Cliente     @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  funcionario Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  turno       Turno       @relation(fields: [turnoId], references: [id], onDelete: Restrict)
+
+  @@unique([funcionarioId, data])
+  @@index([clienteId, data])
+  @@map("alocacoes")
+}
+
+model PrevistoSemana {
+  clienteId     String   @map("cliente_id")
+  funcionarioId String   @map("funcionario_id")
+  inicio        DateTime @db.Date
+  previstoMin   Int      @map("previsto_min")
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@id([funcionarioId, inicio])
+  @@index([clienteId, inicio])
+  @@map("previstos_semana")
+}
+
+model FuncaoMinima {
+  clienteId String @map("cliente_id")
+  funcao    String
+  minimo    Int
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@id([clienteId, funcao])
+  @@map("funcoes_minimas")
+}
+
+model AjusteManual {
+  clienteId     String   @map("cliente_id")
+  funcionarioId String   @map("funcionario_id")
+  data          DateTime @db.Date
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@id([funcionarioId, data])
+  @@index([clienteId, data])
+  @@map("ajustes_manuais")
+}
+
+model DiaFechado {
+  clienteId String   @map("cliente_id")
+  data      DateTime @db.Date
+  motivo    String?
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@id([clienteId, data])
+  @@map("dias_fechados")
+}

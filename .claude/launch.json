@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "ui-vite",
+      "name": "next",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 1420
+      "port": 3000
     }
   ]
 }
