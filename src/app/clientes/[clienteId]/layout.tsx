@@ -1,12 +1,13 @@
 import { Suspense, type ReactNode } from "react";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { Sidebar } from "@/componentes/shell/Sidebar";
 import { Skeleton } from "@/componentes/ui/skeleton";
 import { prisma } from "@/lib/db";
 import { obterUsuario } from "@/lib/supabase/servidor";
 import { hojeISO } from "@/lib/datas";
 
-/** Dados dinâmicos (banco e params) ficam dentro de Suspense por causa do Cache Components. */
+/** Dados dinâmicos (banco, params, sessão e data de hoje) ficam dentro de Suspense por causa do Cache Components. */
 async function ShellCliente({
   params,
   children,
@@ -15,6 +16,9 @@ async function ShellCliente({
   children: ReactNode;
 }) {
   const { clienteId } = await params;
+  // A sessão valida a expiração do token contra a hora atual e a sidebar usa a data de hoje:
+  // marca a renderização como de tempo de requisição antes dessas leituras.
+  await connection();
 
   const [usuario, clientes, cliente, meses] = await Promise.all([
     obterUsuario(),
