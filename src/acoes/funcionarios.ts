@@ -42,6 +42,13 @@ const esquemaFuncionario = z.object({
   preferencia: z.enum(["MANHA", "TARDE", "NOITE"]).nullable(),
   ativo: z.boolean(),
   isentoEc141: z.boolean(),
+  /** Minutos; `null` = não informado. */
+  horasNaoTrabalhadasMin: z
+    .number({ error: "Horas não trabalhadas inválidas." })
+    .int("Horas não trabalhadas inválidas.")
+    .min(0, "As horas não trabalhadas não podem ser negativas.")
+    .max(744 * 60, "As horas não trabalhadas devem ser de no máximo 744h.")
+    .nullable(),
 });
 
 export async function salvarFuncionarioAcao(entrada: z.input<typeof esquemaFuncionario>): Promise<Resultado<FuncionarioDto>> {

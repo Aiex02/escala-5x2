@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { ABA_AUSENCIAS, ABA_FUNCIONARIOS } from "./leitura";
+import { ABA_AUSENCIAS, ABA_FUNCIONARIOS, HORAS_NAO_TRABALHADAS_MAX } from "./leitura";
 
 const FORMATO_DATA = "dd/mm/yyyy";
 
@@ -22,18 +22,19 @@ export async function gerarModeloPlanilha(): Promise<Uint8Array> {
   const func = pasta.addWorksheet(ABA_FUNCIONARIOS);
   cabecalho(
     func,
-    ["matricula", "nome", "cargo", "secao", "ctps", "preferencia", "carga_semanal"],
-    [14, 32, 18, 16, 14, 16, 16],
+    ["matricula", "nome", "cargo", "secao", "ctps", "preferencia", "carga_semanal", "horas_nao_trabalhadas"],
+    [14, 32, 18, 16, 14, 16, 16, 24],
   );
-  func.addRow(["1001", "Ana Exemplo", "Atendente", "Loja", "123456", "Manhã", 36]);
-  func.addRow(["1002", "Bruno Exemplo", "Barista", "Loja", "234567", "Tarde", "37,5"]);
-  func.addRow(["1003", "Carla Exemplo", "Cozinheira", "Cozinha", "", "", ""]);
+  func.addRow(["1001", "Ana Exemplo", "Atendente", "Loja", "123456", "Manhã", 36, 4]);
+  func.addRow(["1002", "Bruno Exemplo", "Barista", "Loja", "234567", "Tarde", "37,5", "4,5"]);
+  func.addRow(["1003", "Carla Exemplo", "Cozinheira", "Cozinha", "", "", "", ""]);
   const notas: [string, string][] = [
     ["A1", "Obrigatória. Identificador único do funcionário."],
     ["B1", "Obrigatória. Nome completo."],
     ["C1", "Opcional. A escala é agrupada por cargo (função)."],
     ["F1", "Opcional: Manhã, Tarde ou Noite. Vazio = sem preferência."],
     ["G1", "Opcional. Horas por semana (36, 37,5 ou 36h)."],
+    ["H1", `Opcional. Horas não trabalhadas, digitadas pelo gestor (4, 4,5 ou 4h; de 0 a ${HORAS_NAO_TRABALHADAS_MAX}). Vazio = mantém o valor já cadastrado.`],
   ];
   for (const [endereco, texto] of notas) func.getCell(endereco).note = texto;
   for (let l = 2; l <= 500; l++) {

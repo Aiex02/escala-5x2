@@ -18,6 +18,8 @@ export type FuncionarioLido = {
   preferencia?: Preferencia;
   /** Carga semanal contratual em minutos. */
   cargaSemanalMin?: number;
+  /** Horas não trabalhadas (em minutos), digitadas pelo gestor; ausente = célula vazia. */
+  horasNaoTrabalhadasMin?: number;
 };
 
 export type AusenciaLida = {

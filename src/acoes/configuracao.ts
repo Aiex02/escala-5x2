@@ -5,7 +5,15 @@ import { falha, type Resultado } from "@/lib/resultado";
 import { ehValida } from "@/motor";
 import { dimensionarCliente } from "@/servicos/dimensionamento";
 import type { DimensionamentoDto } from "@/servicos/dto";
-import { salvarFuncionamento, salvarFuncoes, salvarHoraExtra, salvarRegime, salvarTurno } from "@/servicos/configuracao";
+import {
+  criarTurno,
+  removerTurno,
+  salvarFuncionamento,
+  salvarFuncoes,
+  salvarHoraExtra,
+  salvarRegime,
+  salvarTurno,
+} from "@/servicos/configuracao";
 import { executarCadastro, revalidarCliente, validar } from "./executarCadastro";
 
 const id = z.string().min(1);
@@ -82,20 +90,45 @@ export async function salvarHoraExtraAcao(entrada: z.input<typeof esquemaHoraExt
   return r;
 }
 
-const esquemaTurno = z.object({
+const camposTurno = {
   clienteId: id,
-  turnoId: id,
-  cor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Cor inválida."),
+  nome: z.string().trim().min(1, "Informe o nome do turno.").max(60, "O nome do turno deve ter até 60 caracteres."),
+  inicioMin: inteiro("Entrada", 0, 1439),
+  fimMin: inteiro("Saída", 0, 1439),
+  intervaloMin: inteiro("Intervalo", 0, 120),
+  cor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Cor inválida.").transform((c) => c.toUpperCase()),
   efetivoMinimo: inteiro("Efetivo mínimo", 0, 99),
-});
+  diasSemana: inteiro("Dias do turno", 1, 127),
+};
+const esquemaNovoTurno = z.object(camposTurno);
+const esquemaTurno = z.object({ ...camposTurno, turnoId: id });
 
 export async function salvarTurnoAcao(entrada: z.input<typeof esquemaTurno>): Promise<Resultado<null>> {
   const v = validar(esquemaTurno, entrada);
   if (!v.ok) return falha(v.erro);
   const r = await executarCadastro(async () => {
-    await salvarTurno(v.dados.clienteId, v.dados.turnoId, { cor: v.dados.cor.toUpperCase(), efetivoMinimo: v.dados.efetivoMinimo });
+    const { clienteId, turnoId, ...dados } = v.dados;
+    await salvarTurno(clienteId, turnoId, dados);
     return null;
   });
+  if (r.ok) revalidarCliente();
+  return r;
+}
+
+export async function criarTurnoAcao(entrada: z.input<typeof esquemaNovoTurno>): Promise<Resultado<{ id: string }>> {
+  const v = validar(esquemaNovoTurno, entrada);
+  if (!v.ok) return falha(v.erro);
+  const { clienteId, ...dados } = v.dados;
+  const r = await executarCadastro(() => criarTurno(clienteId, dados));
+  if (r.ok) revalidarCliente();
+  return r;
+}
+
+/** Exclui o turno, ou o arquiva se já tem dias em escalas geradas. */
+export async function removerTurnoAcao(clienteId: string, turnoId: string): Promise<Resultado<{ arquivado: boolean }>> {
+  const v = validar(z.object({ clienteId: id, turnoId: id }), { clienteId, turnoId });
+  if (!v.ok) return falha(v.erro);
+  const r = await executarCadastro(() => removerTurno(v.dados.clienteId, v.dados.turnoId));
   if (r.ok) revalidarCliente();
   return r;
 }

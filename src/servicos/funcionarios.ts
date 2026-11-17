@@ -24,6 +24,7 @@ function paraDto(f: Funcionario & { ausencias: Ausencia[] }): FuncionarioDto {
     preferencia: f.preferencia,
     ativo: f.ativo,
     isentoEc141: f.isentoEc141,
+    horasNaoTrabalhadasMin: f.horasNaoTrabalhadasMin,
     ausencias: f.ausencias.map(ausenciaParaDto),
   };
 }
@@ -47,6 +48,7 @@ export interface EntradaFuncionario {
   preferencia: PreferenciaDto | null;
   ativo: boolean;
   isentoEc141: boolean;
+  horasNaoTrabalhadasMin: number | null;
 }
 
 /** Cria (`id` nulo) ou atualiza um funcionário do cliente. */

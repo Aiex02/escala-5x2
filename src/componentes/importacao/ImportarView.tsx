@@ -131,7 +131,7 @@ export function ImportarView({ clienteId }: { clienteId: string }) {
         </div>
         <p className="text-xs text-texto-suave">
           &quot;Validar&quot; só confere o arquivo e mostra o que mudaria. A matrícula identifica a pessoa: quem já existe é atualizado
-          (nome e cargo sempre; preferência, carga, CTPS e seção só se a planilha trouxer valor). Ninguém é apagado.
+          (nome e cargo sempre; preferência, carga, horas não trabalhadas, CTPS e seção só se a planilha trouxer valor). Ninguém é apagado.
         </p>
       </section>
 

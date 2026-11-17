@@ -31,13 +31,15 @@ type Props = {
 
 const SEM_PREFERENCIA = "nenhuma";
 
-/** "37,5" → 2250 minutos; vazio → `null`; inválido → `undefined`. */
+/** "37,5" ou "36h" → minutos; vazio → `null`; inválido → `undefined`. */
 function lerHoras(texto: string): number | null | undefined {
-  const t = texto.trim();
+  const t = texto.trim().toLowerCase().replace(/\s*h$/, "");
   if (t === "") return null;
-  const n = Number(t.replace(",", "."));
+  const n = /^\d+([.,]\d+)?$/.test(t) ? Number(t.replace(",", ".")) : Number.NaN;
   return Number.isFinite(n) ? Math.round(n * 60) : undefined;
 }
+
+const HORAS_NAO_TRABALHADAS_MAX = 744;
 
 function horasParaTexto(min: number | null): string {
   return min === null ? "" : String(min / 60).replace(".", ",");
@@ -61,6 +63,7 @@ function Formulario({
   const [ctps, setCtps] = useState(funcionario?.ctps ?? "");
   const [preferencia, setPreferencia] = useState<PreferenciaDto | typeof SEM_PREFERENCIA>(funcionario?.preferencia ?? SEM_PREFERENCIA);
   const [carga, setCarga] = useState(horasParaTexto(funcionario?.cargaSemanalMin ?? null));
+  const [naoTrabalhadas, setNaoTrabalhadas] = useState(horasParaTexto(funcionario?.horasNaoTrabalhadasMin ?? null));
   const [ativo, setAtivo] = useState(funcionario?.ativo ?? true);
   const [isento, setIsento] = useState(funcionario?.isentoEc141 ?? false);
   const [erro, setErro] = useState<string | null>(null);
@@ -71,6 +74,11 @@ function Formulario({
     const cargaMin = lerHoras(carga);
     if (cargaMin === undefined) {
       setErro("Carga semanal inválida: use horas, como 36 ou 37,5.");
+      return;
+    }
+    const naoTrabalhadasMin = lerHoras(naoTrabalhadas);
+    if (naoTrabalhadasMin === undefined || (naoTrabalhadasMin !== null && naoTrabalhadasMin > HORAS_NAO_TRABALHADAS_MAX * 60)) {
+      setErro(`Horas não trabalhadas inválidas: use horas de 0 a ${HORAS_NAO_TRABALHADAS_MAX}, como 4, 4,5 ou 4h.`);
       return;
     }
     setErro(null);
@@ -87,6 +95,7 @@ function Formulario({
         preferencia: preferencia === SEM_PREFERENCIA ? null : preferencia,
         ativo,
         isentoEc141: isento,
+        horasNaoTrabalhadasMin: naoTrabalhadasMin,
       });
       if (!r.ok) {
         setErro(r.erro);
@@ -155,6 +164,21 @@ function Formulario({
           />
           <p id="f-carga-dica" className="text-xs text-texto-suave">
             Deixe vazio para seguir a regra do cliente.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="f-nao-trabalhadas">Horas não trabalhadas</Label>
+          <Input
+            id="f-nao-trabalhadas"
+            inputMode="decimal"
+            value={naoTrabalhadas}
+            onChange={(e) => setNaoTrabalhadas(e.target.value)}
+            className="numero font-mono"
+            placeholder="Não informado"
+            aria-describedby="f-nao-trabalhadas-dica"
+          />
+          <p id="f-nao-trabalhadas-dica" className="text-xs text-texto-suave">
+            Ex.: 4, 4,5 ou 4h (até {HORAS_NAO_TRABALHADAS_MAX}h). Só informativo; não altera a escala.
           </p>
         </div>
       </div>

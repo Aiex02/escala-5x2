@@ -16,12 +16,14 @@ import { ErroPlanilha } from "./tipos";
 
 export const ABA_FUNCIONARIOS = "Funcionarios";
 export const ABA_AUSENCIAS = "Ausencias";
+/** Teto de horas não trabalhadas aceito (31 dias × 24h). */
+export const HORAS_NAO_TRABALHADAS_MAX = 744;
 
 type Uso = "obrigatoria" | "opcional" | "ignorada";
 
 type DefColuna<C extends string> = { col: C; rotulo: string; uso: Uso; apelidos: string[] };
 
-type ColFunc = "matricula" | "nome" | "cargo" | "secao" | "ctps" | "preferencia" | "carga" | "horario";
+type ColFunc = "matricula" | "nome" | "cargo" | "secao" | "ctps" | "preferencia" | "carga" | "horasNaoTrabalhadas" | "horario";
 type ColAus = "matricula" | "inicio" | "fim" | "motivo" | "justificada";
 
 const MATRICULA = ["matricula", "registro", "codigo", "cracha"];
@@ -53,6 +55,12 @@ const COLUNAS_FUNCIONARIOS: DefColuna<ColFunc>[] = [
     rotulo: "carga_semanal",
     uso: "opcional",
     apelidos: ["cargasemanal", "carga", "horassemanais", "cargahoraria"],
+  },
+  {
+    col: "horasNaoTrabalhadas",
+    rotulo: "horas_nao_trabalhadas",
+    uso: "opcional",
+    apelidos: ["horasnaotrabalhadas", "horasnaotrabalhada", "hnt"],
   },
   { col: "horario", rotulo: "turno", uso: "ignorada", apelidos: ["turno", "turnos"] },
   { col: "horario", rotulo: "entrada", uso: "ignorada", apelidos: ["entrada", "horaentrada", "horainicio"] },
@@ -213,6 +221,16 @@ function lerFuncionarios(aba: AbaPreparada<ColFunc>, r: LeituraPlanilha): void {
       }
     }
 
+    let naoTrabalhadasMin: number | null = null;
+    const hnt = coletar(celula.numero(valor(aba, linha, "horasNaoTrabalhadas")), "horas_nao_trabalhadas", erros);
+    if (hnt !== null) {
+      if (hnt < 0 || hnt > HORAS_NAO_TRABALHADAS_MAX) {
+        erros.push(`horas_nao_trabalhadas ${hnt} fora do intervalo (0 a ${HORAS_NAO_TRABALHADAS_MAX} horas)`);
+      } else {
+        naoTrabalhadasMin = Math.round(hnt * 60);
+      }
+    }
+
     if (matricula !== null && !primeira.has(matricula)) primeira.set(matricula, linha.numero);
 
     if (erros.length > 0 || matricula === null || nome === null) {
@@ -230,6 +248,7 @@ function lerFuncionarios(aba: AbaPreparada<ColFunc>, r: LeituraPlanilha): void {
     if (ctps) f.ctps = ctps;
     if (preferencia) f.preferencia = preferencia;
     if (cargaMin !== null) f.cargaSemanalMin = cargaMin;
+    if (naoTrabalhadasMin !== null) f.horasNaoTrabalhadasMin = naoTrabalhadasMin;
     r.funcionarios.push(f);
   }
 }

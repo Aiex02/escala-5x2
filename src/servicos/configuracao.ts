@@ -1,12 +1,13 @@
 // Configuração do cliente: modelo de funcionamento, regras da empresa, turnos, regime legal e funções.
 
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { deISO, hojeISO } from "@/lib/datas";
 import { proximaCorLivre } from "@/lib/coresTurno";
 import {
   buscarModelo,
   chaveFuncao,
+  criarHorario,
   ehValida,
   errosDasRegras,
   funcionamentoDoModelo,
@@ -269,11 +270,103 @@ export async function salvarHoraExtra(clienteId: string, dados: { permitirHoraEx
   });
 }
 
-/** Ajusta cor e efetivo mínimo de um turno ativo. */
-export async function salvarTurno(clienteId: string, turnoId: string, dados: { cor: string; efetivoMinimo: number }): Promise<void> {
+export interface DadosTurno {
+  nome: string;
+  inicioMin: number;
+  fimMin: number;
+  intervaloMin: number;
+  cor: string;
+  efetivoMinimo: number;
+  /** Máscara de bits (bit 0 = segunda ... bit 6 = domingo). */
+  diasSemana: number;
+}
+
+/** Valida horário (via `criarHorario`, lança `ErroMotor`), dias e nome. Devolve o nome sem espaços nas pontas. */
+function validarTurno(dados: DadosTurno): string {
+  criarHorario(dados.inicioMin, dados.fimMin, dados.intervaloMin);
+  if (!Number.isInteger(dados.diasSemana) || dados.diasSemana < 1 || dados.diasSemana > 127) {
+    throw new ErroCadastro("Selecione ao menos um dia válido para o turno.");
+  }
+  const nome = dados.nome.trim();
+  if (nome === "") throw new ErroCadastro("Informe o nome do turno.");
+  return nome;
+}
+
+/** Recusa nome já usado por outro turno do cliente (sem diferenciar maiúsculas). */
+async function garantirNomeLivre(clienteId: string, nome: string, ignorarId: string | null): Promise<void> {
+  const emUso = await prisma.turno.findFirst({
+    where: { clienteId, nome: { equals: nome, mode: "insensitive" }, ...(ignorarId && { id: { not: ignorarId } }) },
+    select: { arquivado: true },
+  });
+  if (emUso) throw new ErroCadastro(`Já existe um turno chamado "${nome}" neste cliente.`);
+}
+
+/** Converte a violação de `@@unique([clienteId, nome])` (corrida entre duas gravações) em erro legível. */
+function nomeDuplicado(erro: unknown, nome: string): never {
+  if (erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === "P2002") {
+    throw new ErroCadastro(`Já existe um turno chamado "${nome}" neste cliente.`);
+  }
+  throw erro;
+}
+
+const camposTurno = (nome: string, dados: DadosTurno) => ({
+  nome,
+  inicioMin: dados.inicioMin,
+  fimMin: dados.fimMin,
+  intervaloMin: dados.intervaloMin,
+  cor: dados.cor,
+  efetivoMinimo: dados.efetivoMinimo,
+  diasSemana: dados.diasSemana,
+});
+
+/**
+ * Ajusta todos os campos de um turno ativo, preservando o identificador e o histórico: as
+ * alocações já geradas guardam o próprio horário e não mudam.
+ */
+export async function salvarTurno(clienteId: string, turnoId: string, dados: DadosTurno): Promise<void> {
+  const nome = validarTurno(dados);
   const turno = await prisma.turno.findFirst({ where: { id: turnoId, clienteId, arquivado: false }, select: { id: true } });
   if (!turno) throw new ErroCadastro("Turno não encontrado.");
-  await prisma.turno.update({ where: { id: turnoId }, data: { cor: dados.cor, efetivoMinimo: dados.efetivoMinimo } });
+  await garantirNomeLivre(clienteId, nome, turnoId);
+  await prisma.turno.update({ where: { id: turnoId }, data: camposTurno(nome, dados) }).catch((e: unknown) => nomeDuplicado(e, nome));
+}
+
+/** Cria um turno manual no fim da lista. Devolve o id. */
+export async function criarTurno(clienteId: string, dados: DadosTurno): Promise<{ id: string }> {
+  const nome = validarTurno(dados);
+  const cliente = await prisma.cliente.findUnique({ where: { id: clienteId }, select: { id: true } });
+  if (!cliente) throw new ErroCadastro("Cliente não encontrado.");
+  await garantirNomeLivre(clienteId, nome, null);
+  const ultimo = await prisma.turno.aggregate({ where: { clienteId }, _max: { ordem: true } });
+  return prisma.turno
+    .create({
+      data: { clienteId, ordem: (ultimo._max.ordem ?? -1) + 1, ...camposTurno(nome, dados) },
+      select: { id: true },
+    })
+    .catch((e: unknown) => nomeDuplicado(e, nome));
+}
+
+/**
+ * Remove um turno ativo. Com alocações (escala já gerada), o turno é arquivado e renomeado para
+ * liberar o nome, preservando o histórico; sem alocações, é excluído.
+ */
+export async function removerTurno(clienteId: string, turnoId: string): Promise<{ arquivado: boolean }> {
+  return prisma.$transaction(async (tx) => {
+    const turno = await tx.turno.findFirst({
+      where: { id: turnoId, clienteId, arquivado: false },
+      select: { id: true, nome: true, _count: { select: { alocacoes: true } } },
+    });
+    if (!turno) throw new ErroCadastro("Turno não encontrado.");
+    if (turno._count.alocacoes > 0) {
+      await tx.turno.update({
+        where: { id: turno.id },
+        data: { arquivado: true, nome: `${turno.nome} (arquivado ${turno.id.slice(-5)})` },
+      });
+      return { arquivado: true };
+    }
+    await tx.turno.delete({ where: { id: turno.id } });
+    return { arquivado: false };
+  });
 }
 
 /** Grava o mínimo por função; funções sem funcionários ativos perdem a linha. */

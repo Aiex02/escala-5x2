@@ -55,6 +55,8 @@ export async function importarPlanilha(
                 ...(ctps !== undefined && { ctps }),
                 ...(f.preferencia !== undefined && { preferencia: f.preferencia }),
                 ...(f.cargaSemanalMin !== undefined && { cargaSemanalMin: f.cargaSemanalMin }),
+                // Célula vazia não apaga o que o gestor já cadastrou.
+                ...(f.horasNaoTrabalhadasMin !== undefined && { horasNaoTrabalhadasMin: f.horasNaoTrabalhadasMin }),
               },
             });
           } else {
@@ -68,6 +70,7 @@ export async function importarPlanilha(
                 ctps: ctps ?? null,
                 preferencia: f.preferencia ?? null,
                 cargaSemanalMin: f.cargaSemanalMin ?? null,
+                horasNaoTrabalhadasMin: f.horasNaoTrabalhadasMin ?? null,
               },
               select: { id: true },
             });

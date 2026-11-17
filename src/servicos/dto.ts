@@ -81,6 +81,8 @@ export interface FuncionarioDto {
   preferencia: PreferenciaDto | null;
   ativo: boolean;
   isentoEc141: boolean;
+  /** Horas não trabalhadas em minutos (informadas pelo gestor); `null` = não informado. */
+  horasNaoTrabalhadasMin: number | null;
   ausencias: AusenciaDto[];
 }
 

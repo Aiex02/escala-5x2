@@ -101,18 +101,20 @@ model Turno {
 }
 
 model Funcionario {
-  id              String   @id @default(cuid())
-  clienteId       String   @map("cliente_id")
-  matricula       String
-  nome            String
-  cargo           String?
-  secao           String?
-  ctps            String?
-  cargaSemanalMin Int?     @map("carga_semanal_min")
-  preferencia     Periodo?
-  ativo           Boolean  @default(true)
+  id                     String   @id @default(cuid())
+  clienteId              String   @map("cliente_id")
+  matricula              String
+  nome                   String
+  cargo                  String?
+  secao                  String?
+  ctps                   String?
+  cargaSemanalMin        Int?     @map("carga_semanal_min")
+  preferencia            Periodo?
+  ativo                  Boolean  @default(true)
   /// Fora das regras de jornada da lei (superior + alta remuneração, ou empregado público)
-  isentoEc141     Boolean  @default(false) @map("isento_ec141")
+  isentoEc141            Boolean  @default(false) @map("isento_ec141")
+  /// Horas não trabalhadas informadas pelo gestor (minutos); só informativo, não entra no motor
+  horasNaoTrabalhadasMin Int?     @map("horas_nao_trabalhadas_min")
 
   cliente   Cliente    @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   ausencias Ausencia[]

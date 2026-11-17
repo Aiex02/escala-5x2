@@ -186,6 +186,7 @@ export function FuncionariosView({ clienteId, funcionarios }: { clienteId: strin
                   <TableHead>Seção</TableHead>
                   <TableHead>Preferência</TableHead>
                   <TableHead className="text-right">Carga semanal</TableHead>
+                  <TableHead className="text-right">Horas não trabalhadas</TableHead>
                   <TableHead>Ativo</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -193,7 +194,7 @@ export function FuncionariosView({ clienteId, funcionarios }: { clienteId: strin
               <TableBody>
                 {filtrados.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-8 text-center text-texto-suave">
+                    <TableCell colSpan={9} className="py-8 text-center text-texto-suave">
                       Ninguém encontrado com esse filtro.
                     </TableCell>
                   </TableRow>
@@ -202,7 +203,7 @@ export function FuncionariosView({ clienteId, funcionarios }: { clienteId: strin
                   <Fragment key={g.titulo ?? "todos"}>
                     {g.titulo !== null && (
                       <TableRow className="bg-muted/50 hover:bg-muted/50">
-                        <TableCell colSpan={8} className="font-display text-sm font-semibold">
+                        <TableCell colSpan={9} className="font-display text-sm font-semibold">
                           {g.titulo} <span className="numero font-mono text-xs font-normal text-texto-suave">({g.itens.length})</span>
                         </TableCell>
                       </TableRow>
@@ -241,6 +242,9 @@ export function FuncionariosView({ clienteId, funcionarios }: { clienteId: strin
                         </TableCell>
                         <TableCell className="numero text-right font-mono">
                           {f.cargaSemanalMin === null ? <span className="text-texto-suave">regra do cliente</span> : formatarMinutos(f.cargaSemanalMin)}
+                        </TableCell>
+                        <TableCell className="numero text-right font-mono">
+                          {f.horasNaoTrabalhadasMin === null ? <span className="text-texto-suave">—</span> : formatarMinutos(f.horasNaoTrabalhadasMin)}
                         </TableCell>
                         <TableCell>
                           <Switch

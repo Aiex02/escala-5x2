@@ -313,6 +313,13 @@ export function SecaoFuncionamento({ config }: { config: ConfiguracaoDto }) {
           Ao salvar, turnos com o mesmo horário continuam (com cor e efetivo mínimo); os que deixam de existir são arquivados se já
           têm escala gerada, ou excluídos.
         </p>
+        <p role="note" className="flex gap-2 text-xs text-atencao">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <span>
+            Ajustes manuais feitos na aba Turnos se perdem: turnos criados à mão ou com horário alterado são excluídos (ou arquivados),
+            e nome e dias dos demais voltam ao calculado.
+          </span>
+        </p>
       </section>
 
       <Button onClick={salvar} disabled={pendente || analise.erro !== null}>
