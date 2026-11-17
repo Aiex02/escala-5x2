@@ -137,20 +137,20 @@ describe("planilha modelo", () => {
       const r = await lerPlanilhaFuncionarios(
         await modelo(
           [
-            ["1", "A", 4],
-            ["2", "B", "4,5"],
-            ["3", "C", "4h"],
-            ["4", "D", 4.5],
-            ["5", "E", "4 h"],
+            ["1", "A", 1],
+            ["2", "B", "1,5"],
+            ["3", "C", "1h"],
+            ["4", "D", 1.5],
+            ["5", "E", "1 h"],
             ["6", "F", 0],
-            ["7", "G", 744],
+            ["7", "G", 12],
           ],
           undefined,
           CAB,
         ),
       );
       expect(r.rejeitadas).toEqual([]);
-      expect(r.funcionarios.map((f) => f.horasNaoTrabalhadasMin)).toEqual([240, 270, 240, 270, 240, 0, 744 * 60]);
+      expect(r.funcionarios.map((f) => f.horasNaoTrabalhadasMin)).toEqual([60, 90, 60, 90, 60, 0, 12 * 60]);
     });
 
     it("célula vazia não define o campo (a importação mantém o valor cadastrado)", async () => {
@@ -165,15 +165,15 @@ describe("planilha modelo", () => {
       expect(r.funcionarios[0]).not.toHaveProperty("horasNaoTrabalhadasMin");
     });
 
-    it("rejeita valores negativos, acima de 744 e texto inválido", async () => {
+    it("rejeita valores negativos, acima de 12 e texto inválido", async () => {
       const r = await lerPlanilhaFuncionarios(
-        await modelo([["1", "A", -1], ["2", "B", 744.5], ["3", "C", "quatro"], ["4", "D", "4,5h"]], undefined, CAB),
+        await modelo([["1", "A", -1], ["2", "B", 12.5], ["3", "C", "quatro"], ["4", "D", "1,5h"]], undefined, CAB),
       );
       expect(r.funcionarios.map((f) => f.matricula)).toEqual(["4"]);
-      expect(r.funcionarios[0]?.horasNaoTrabalhadasMin).toBe(270);
+      expect(r.funcionarios[0]?.horasNaoTrabalhadasMin).toBe(90);
       expect(r.rejeitadas.map((x) => x.matricula)).toEqual(["1", "2", "3"]);
-      expect(r.rejeitadas[0]?.erros.join()).toMatch(/horas_nao_trabalhadas -1 fora do intervalo \(0 a 744 horas\)/);
-      expect(r.rejeitadas[1]?.erros.join()).toMatch(/horas_nao_trabalhadas 744\.5 fora do intervalo/);
+      expect(r.rejeitadas[0]?.erros.join()).toMatch(/horas_nao_trabalhadas -1 fora do intervalo \(0 a 12 horas\)/);
+      expect(r.rejeitadas[1]?.erros.join()).toMatch(/horas_nao_trabalhadas 12\.5 fora do intervalo/);
       expect(r.rejeitadas[2]?.erros.join()).toMatch(/horas_nao_trabalhadas: "quatro" não é um número/);
     });
 
@@ -200,7 +200,7 @@ describe("planilha modelo", () => {
     expect(r.rejeitadas).toEqual([]);
     expect(r.ausencias).toHaveLength(1);
     expect(r.funcionarios[1]?.cargaSemanalMin).toBe(2250);
-    expect(r.funcionarios.map((f) => f.horasNaoTrabalhadasMin)).toEqual([240, 270, undefined]);
+    expect(r.funcionarios.map((f) => f.horasNaoTrabalhadasMin)).toEqual([60, 90, undefined]);
     const pasta = new ExcelJS.Workbook();
     await pasta.xlsx.load(Buffer.from(await gerarModeloPlanilha()) as never);
     expect(pasta.worksheets.map((a) => a.name)).toEqual(["Funcionarios", "Ausencias"]);

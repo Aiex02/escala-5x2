@@ -16,8 +16,11 @@ import { ErroPlanilha } from "./tipos";
 
 export const ABA_FUNCIONARIOS = "Funcionarios";
 export const ABA_AUSENCIAS = "Ausencias";
-/** Teto de horas não trabalhadas aceito (31 dias × 24h). */
-export const HORAS_NAO_TRABALHADAS_MAX = 744;
+/**
+ * Teto de horas não trabalhadas aceito. É o almoço / intervalo da pessoa num dia, então o
+ * limite é a maior jornada possível (12h): acima disso não cabe em turno nenhum.
+ */
+export const HORAS_NAO_TRABALHADAS_MAX = 12;
 
 type Uso = "obrigatoria" | "opcional" | "ignorada";
 

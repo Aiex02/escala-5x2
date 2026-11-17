@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { AlertTriangle, Check, Loader2, Plus, Trash2 } from "lucide-react";
+import { Check, Loader2, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { criarTurnoAcao, removerTurnoAcao, salvarTurnoAcao } from "@/acoes/configuracao";
 import {
@@ -243,6 +243,12 @@ function LinhaTurno({ clienteId, turno }: { clienteId: string; turno: TurnoDto }
 
   return (
     <li className="rounded-lg border border-borda bg-superficie p-4">
+      {turno.personalizado && (
+        <p className="mb-3 flex items-center gap-1.5 text-xs text-texto-suave">
+          <ShieldCheck className="size-3.5 shrink-0" aria-hidden />
+          Editado à mão: protegido de &quot;Salvar funcionamento&quot;.
+        </p>
+      )}
       <EditorTurno
         idBase={turno.id}
         inicial={turno}
@@ -297,7 +303,7 @@ function NovoTurno({ clienteId, turnos, aoFechar }: { clienteId: string; turnos:
 
 /** Chave que muda quando o servidor devolve outro valor, para o formulário recomeçar dele. */
 const chaveTurno = (t: TurnoDto) =>
-  [t.id, t.nome, t.inicioMin, t.fimMin, t.intervaloMin, t.cor, t.efetivoMinimo, t.diasSemana].join("|");
+  [t.id, t.nome, t.inicioMin, t.fimMin, t.intervaloMin, t.cor, t.efetivoMinimo, t.diasSemana, t.personalizado].join("|");
 
 export function SecaoTurnos({ clienteId, turnos }: { clienteId: string; turnos: TurnoDto[] }) {
   const [criando, setCriando] = useState(false);
@@ -308,13 +314,10 @@ export function SecaoTurnos({ clienteId, turnos }: { clienteId: string; turnos: 
         Edite nome, horários, intervalo, dias de funcionamento, cor e efetivo mínimo de cada turno, crie turnos novos ou remova os que
         não usa mais. As mudanças valem para as próximas escalas: os dias já gerados guardam o horário com que foram escalados.
       </p>
-      <div role="note" className="flex gap-2 rounded-lg border border-atencao/40 bg-atencao/10 p-3 text-sm">
-        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-atencao" aria-hidden />
+      <div role="note" className="flex gap-2 rounded-lg border border-borda bg-superficie p-3 text-sm">
+        <ShieldCheck className="mt-0.5 size-4 shrink-0 text-texto-suave" aria-hidden />
         <p>
-          <strong>Atenção:</strong> ao clicar em &quot;Salvar funcionamento&quot; (aba Funcionamento e jornada), os turnos são
-          recalculados a partir dos horários de funcionamento. Turnos criados aqui ou com horário alterado à mão são excluídos (ou
-          arquivados, se já têm escala), e nome e dias dos demais voltam ao calculado. Faça os ajustes de turno depois de salvar o
-          funcionamento.
+          Turnos editados ou criados aqui ficam protegidos: &quot;Salvar funcionamento&quot; não os altera, exclui nem arquiva.
         </p>
       </div>
 

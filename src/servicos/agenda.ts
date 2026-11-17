@@ -17,6 +17,8 @@ import {
   formatarHora,
   formatarMinutos,
   funcoesDescobertas,
+  horarioDoFuncionario,
+  intervaloDoFuncionario,
   pessoasPorTurnoDia,
   semanasCobrindo,
   somarDias,
@@ -183,7 +185,7 @@ export async function obterAgenda(clienteId: string, ano: number, mes: number): 
   // Células.
   const alocPorChave = new Map<string, Alocacao>(alocacoesMotor.map((a) => [`${a.funcionarioId}|${a.data}`, a]));
   const celulaDe = (
-    f: { id: string; ausencias: readonly AusenciaDb[] },
+    f: { id: string; ausencias: readonly AusenciaDb[]; horasNaoTrabalhadasMin: number | null },
     ausenciaDia: Map<DataISO, { justificada: boolean; motivo: string | null }>,
     data: DataISO,
     aberto: boolean,
@@ -192,7 +194,12 @@ export async function obterAgenda(clienteId: string, ano: number, mes: number): 
     const a = alocPorChave.get(`${f.id}|${data}`);
     if (a) {
       const t = turnoPorId.get(a.turnoId);
-      const compensada = t ? t.inicioMin !== a.horario.inicioMin || t.fimMin !== a.horario.fimMin || t.intervaloMin !== a.horario.intervaloMin : false;
+      // O horário normal da pessoa no turno já traz a hora não trabalhada dela; só o que
+      // diferir disso é jornada compensada.
+      const normal = t ? (horarioDoFuncionario(f, { inicioMin: t.inicioMin, fimMin: t.fimMin, intervaloMin: t.intervaloMin }) ?? t) : null;
+      const compensada = normal
+        ? normal.inicioMin !== a.horario.inicioMin || normal.fimMin !== a.horario.fimMin || normal.intervaloMin !== a.horario.intervaloMin
+        : false;
       const origem = a.origem ?? "normal";
       const extraMin = origem === "horaExtra" ? Math.max(0, minutosDe(a) - ctx.regrasDb.jornadaPadraoMin) : 0;
       return { tipo: "turno", turnoId: a.turnoId, inicioMin: a.horario.inicioMin, fimMin: a.horario.fimMin, intervaloMin: a.horario.intervaloMin, compensada, origem, extraMin, ajustada };
@@ -265,6 +272,7 @@ export async function obterAgenda(clienteId: string, ano: number, mes: number): 
         cargo,
         ativo: f.ativo,
         celulas: celulasLinha,
+        horasNaoTrabalhadasMin: f.horasNaoTrabalhadasMin,
         horasMesMin: minutosNoMes.get(f.id) ?? 0,
         saldoMesMin: saldo,
         saldoAnteriorMin: saldoAnterior,
@@ -566,17 +574,18 @@ export async function definirDia(
     await tx.alocacao.deleteMany({ where: { funcionarioId, data: dia } });
     if (valor.tipo !== "limpar") await removerAusenciaDoDia(tx, funcionarioId, data);
     if (valor.tipo === "turno" && turno) {
+      // A hora não trabalhada da pessoa vale no lugar do intervalo da loja só para ela.
+      const intervaloMin = intervaloDoFuncionario(funcionario, turno.intervaloMin);
+      const jornada = { inicioMin: turno.inicioMin, fimMin: turno.fimMin, intervaloMin };
       await tx.alocacao.create({
         data: {
           clienteId,
           funcionarioId,
           turnoId: turno.id,
           data: dia,
-          inicioMin: turno.inicioMin,
-          fimMin: turno.fimMin,
-          intervaloMin: turno.intervaloMin,
+          ...jornada,
           origem: "normal",
-          minutosTrabalhados: minutosDoTurno(turno),
+          minutosTrabalhados: minutosDoTurno(jornada),
         },
       });
     } else if (valor.tipo === "falta") {
@@ -625,17 +634,22 @@ export async function trocarDia(clienteId: string, data: DataISO, funcionarioA: 
     const deB = existentes.find((x) => x.funcionarioId === funcionarioB);
     if (!deA && !deB) throw new ErroAgenda("As duas pessoas estão de folga nesse dia; não há o que trocar.");
     await tx.alocacao.deleteMany({ where: { id: { in: existentes.map((x) => x.id) } } });
+    const turnosPorId = new Map(ctx.turnosDb.map((t) => [t.id, t]));
     const recriar = async (origem: (typeof existentes)[number], destino: string): Promise<void> => {
+      // A jornada vai para o outro, mas a hora não trabalhada é de cada um: o intervalo do
+      // turno é trocado pelo almoço de quem passa a cumprir o dia.
+      const pessoa = destino === funcionarioA ? a : b;
+      const doTurno = turnosPorId.get(origem.turnoId)?.intervaloMin ?? origem.intervaloMin;
+      const intervaloMin = origem.intervaloMin === doTurno ? intervaloDoFuncionario(pessoa, doTurno) : origem.intervaloMin;
+      const jornada = { inicioMin: origem.inicioMin, fimMin: origem.fimMin, intervaloMin };
       await tx.alocacao.create({
         data: {
           clienteId,
           funcionarioId: destino,
           turnoId: origem.turnoId,
           data: dia,
-          inicioMin: origem.inicioMin,
-          fimMin: origem.fimMin,
-          intervaloMin: origem.intervaloMin,
-          minutosTrabalhados: origem.minutosTrabalhados,
+          ...jornada,
+          minutosTrabalhados: minutosDoTurno(jornada),
           origem: origem.origem,
         },
       });

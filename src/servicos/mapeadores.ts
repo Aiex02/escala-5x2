@@ -110,5 +110,7 @@ export function funcionarioParaMotor(
     saldoAnteriorMin: extras.saldoAnteriorMin ?? 0,
     funcao: f.cargo ? chaveFuncao(f.cargo) : undefined,
     isentoRegime: f.isentoEc141,
+    // Hora não trabalhada (almoço próprio): entra no motor e substitui o intervalo da loja.
+    ...(f.horasNaoTrabalhadasMin === null ? {} : { horasNaoTrabalhadasMin: f.horasNaoTrabalhadasMin }),
   };
 }

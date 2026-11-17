@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { formatarHora, formatarMinutos } from "@/lib/formato";
 import { nomeDiaCurto } from "@/lib/datas";
+import { intervaloDoFuncionario } from "@/motor";
 import type { AgendaMesDto, CelulaDto, TipoAvisoDto, TurnoAgendaDto, ValorDia } from "@/servicos/agendaDto";
 
 /** Estilo de um turno a partir da cor do banco: fundo suave, borda sólida, texto legível em claro e escuro. */
@@ -78,7 +79,13 @@ export function textoSaldo(minutos: number): string {
   return `${minutos < 0 ? "−" : "+"}${formatarMinutos(minutos)}`;
 }
 
-export function celulaDoValor(valor: ValorDia, agenda: AgendaMesDto, indiceDia: number, antiga?: CelulaDto): CelulaDto {
+export function celulaDoValor(
+  valor: ValorDia,
+  agenda: AgendaMesDto,
+  indiceDia: number,
+  antiga?: CelulaDto,
+  horasNaoTrabalhadasMin?: number | null,
+): CelulaDto {
   switch (valor.tipo) {
     case "turno": {
       const t = agenda.turnos.find((x) => x.id === valor.turnoId);
@@ -87,7 +94,8 @@ export function celulaDoValor(valor: ValorDia, agenda: AgendaMesDto, indiceDia: 
         turnoId: valor.turnoId,
         inicioMin: t?.inicioMin ?? 0,
         fimMin: t?.fimMin ?? 0,
-        intervaloMin: t?.intervaloMin ?? 0,
+        // A hora não trabalhada da pessoa vale no lugar do intervalo da loja.
+        intervaloMin: intervaloDoFuncionario({ horasNaoTrabalhadasMin }, t?.intervaloMin ?? 0),
         compensada: false,
         origem: "normal",
         extraMin: 0,
@@ -117,8 +125,9 @@ function minutosDaCelula(c: CelulaDto): number {
 export function aplicarOtimista(agenda: AgendaMesDto, funcionarioId: string, data: string, valor: ValorDia): AgendaMesDto {
   const i = agenda.dias.findIndex((d) => d.data === data);
   if (i < 0) return agenda;
-  const antiga = agenda.grupos.flatMap((g) => g.linhas).find((l) => l.funcionarioId === funcionarioId)?.celulas[i];
-  const nova = celulaDoValor(valor, agenda, i, antiga);
+  const linha = agenda.grupos.flatMap((g) => g.linhas).find((l) => l.funcionarioId === funcionarioId);
+  const antiga = linha?.celulas[i];
+  const nova = celulaDoValor(valor, agenda, i, antiga, linha?.horasNaoTrabalhadasMin);
   const grupos = agenda.grupos.map((g) => {
     if (!g.linhas.some((l) => l.funcionarioId === funcionarioId)) return g;
     return {

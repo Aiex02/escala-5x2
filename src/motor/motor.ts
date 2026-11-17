@@ -92,6 +92,8 @@ import {
   type FuncionarioPlano,
   horaExtraAtiva,
   horaExtraSemanalMax,
+  horarioDoFuncionario,
+  intervaloDoFuncionario,
   jornadaMaxComExtraMin,
   minutosDaAlocacao,
   minutosExtras,
@@ -411,6 +413,8 @@ class Motor {
   private folgasPlanejadas = new Map<number, Set<DataISO>>();
   /** Previsto (minutos) da semana fechada, por `funcionario|inicioDaSemana`, depois das folgas forçadas. */
   readonly previstos = new Map<string, number>();
+  /** Funcionários da entrada por id (inclusive os sem turno possível), para a hora não trabalhada. */
+  private readonly funcPorId = new Map<string, FuncionarioPlano>();
 
   constructor(private readonly entrada: EntradaPlanejamento) {
     const regras = entrada.regras;
@@ -432,7 +436,7 @@ class Motor {
       .sort((a, b) => compararTexto(a.funcao, b.funcao));
 
     // Turnos que cabem na jornada diária; os demais são ignorados, com um aviso cada.
-    const opcoes: Opcao[] = [];
+    const turnosValidos: Turno[] = [];
     for (const t of this.turnos) {
       if (minutosTrabalhados(t.horario) > regras.jornadaDiariaMaxMin) {
         this.avisos.push({
@@ -443,16 +447,22 @@ class Motor {
           )}; turno ignorado.`,
         });
       } else {
-        opcoes.push({ turnoId: t.id, horario: t.horario });
+        turnosValidos.push(t);
       }
     }
-    const turnosValidos = this.turnos.filter((t) => opcoes.some((o) => o.turnoId === t.id));
-    const duracaoRef = Math.max(jornadaDeReferencia(turnosValidos, regras.jornadaDiariaMaxMin) ?? 1, 1);
-    const duracaoMin = Math.max(Math.min(...opcoes.map((o) => minutosTrabalhados(o.horario))), 1);
-    const diasTurnos = opcoes.reduce((acc, o) => uniaoDias(acc, this.diasDoTurno.get(o.turnoId) ?? NENHUM_DIA), NENHUM_DIA);
 
     const ordenados = [...entrada.funcionarios].sort((a, b) => compararTexto(a.id, b.id));
+    for (const func of ordenados) this.funcPorId.set(func.id, func);
     for (const func of ordenados) {
+      // Quem tem hora não trabalhada própria cumpre o mesmo horário com o almoço dela: os
+      // minutos do dia mudam, e um turno em que o almoço dela não cabe não serve para ela.
+      const possiveis = turnosValidos.filter((t) => {
+        const h = horarioDoFuncionario(func, t.horario);
+        if (h === null) return false;
+        const m = minutosTrabalhados(h);
+        return m > 0 && m <= regras.jornadaDiariaMaxMin;
+      });
+      const opcoes: Opcao[] = possiveis.map((t) => ({ turnoId: t.id, horario: horarioDoFuncionario(func, t.horario) ?? t.horario }));
       if (opcoes.length === 0) {
         this.avisos.push({
           tipo: "funcionarioSemTurno",
@@ -465,10 +475,10 @@ class Motor {
         func,
         funcao: func.funcao === undefined ? undefined : chaveFuncao(func.funcao),
         opcoes,
-        duracaoRef,
-        duracaoMin,
+        duracaoRef: Math.max(jornadaDeReferencia(possiveis, regras.jornadaDiariaMaxMin, func) ?? 1, 1),
+        duracaoMin: Math.max(Math.min(...opcoes.map((o) => minutosTrabalhados(o.horario))), 1),
+        diasTurnos: opcoes.reduce((acc, o) => uniaoDias(acc, this.diasDoTurno.get(o.turnoId) ?? NENHUM_DIA), NENHUM_DIA),
         posicao: this.aptos.length,
-        diasTurnos,
         faixa: null,
         rodizioDomingo: 0,
       });
@@ -1321,6 +1331,14 @@ class Motor {
     return total;
   }
 
+  /**
+   * Intervalo da jornada ajustada: a hora não trabalhada da pessoa, quando ela tem uma (o almoço
+   * dela não muda porque a jornada encurtou ou esticou); senão o `calculado` pela CLT.
+   */
+  private intervaloDe(funcionarioId: string, calculado: number): number {
+    return intervaloDoFuncionario(this.funcPorId.get(funcionarioId), calculado);
+  }
+
   /** Funcionamento do dia, incluindo a própria jornada. */
   private janela(a: Alocacao): [number, number] {
     const inicio = a.horario.inicioMin;
@@ -1338,7 +1356,7 @@ class Motor {
     const inicio = a.horario.inicioMin;
     const fim = inicio + duracaoTotal(a.horario);
     const trabalhado = minutosDaAlocacao(a) + minutos;
-    const intervalo = Math.max(a.horario.intervaloMin, intervaloPadrao(trabalhado));
+    const intervalo = this.intervaloDe(a.funcionarioId, Math.max(a.horario.intervaloMin, intervaloPadrao(trabalhado)));
     const duracao = trabalhado + intervalo;
     const depois: [number, number] = [inicio, inicio + duracao];
     const antes: [number, number] | null = fim - duracao >= 0 ? [fim - duracao, fim] : null;
@@ -1356,7 +1374,7 @@ class Motor {
     const fim = inicio + duracaoTotal(a.horario);
     const trabalhado = minutosDaAlocacao(a) - minutos;
     if (trabalhado < 0) return null;
-    const intervalo = Math.min(a.horario.intervaloMin, intervaloPadrao(trabalhado));
+    const intervalo = this.intervaloDe(a.funcionarioId, Math.min(a.horario.intervaloMin, intervaloPadrao(trabalhado)));
     const duracao = trabalhado + intervalo;
     if (fim >= fecha && inicio > 0) {
       if (fim - duracao < 0) return null;
@@ -1737,7 +1755,7 @@ class Motor {
           if (paraFrente ? fimAtual >= fimFalta : ini <= inicioFalta) return;
           for (let x = Math.floor((tetoJornada - trabalhado) / PASSO_AJUSTE_MIN) * PASSO_AJUSTE_MIN; x >= PASSO_AJUSTE_MIN; x -= PASSO_AJUSTE_MIN) {
             const novoTrabalho = trabalhado + x;
-            const intervalo = Math.max(atual.horario.intervaloMin, intervaloPadrao(novoTrabalho));
+            const intervalo = this.intervaloDe(id, Math.max(atual.horario.intervaloMin, intervaloPadrao(novoTrabalho)));
             const duracao = novoTrabalho + intervalo;
             const novoInicio = paraFrente ? ini : fimAtual - duracao;
             const novoFim = paraFrente ? ini + duracao : fimAtual;

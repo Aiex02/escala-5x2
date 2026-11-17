@@ -35,6 +35,7 @@ export function dimensionarContexto(ctx: ContextoCliente, dataReferencia: DataIS
       cargaSemanalMin: f.cargaSemanalMin,
       ativo: f.ativo,
       isentoRegime: f.isentoEc141,
+      horasNaoTrabalhadasMin: f.horasNaoTrabalhadasMin,
     })),
     minimoPorFuncao: minimosPorFuncao(ctx.funcionarios, ctx.funcoesMinimasDb),
     regras: ctx.regras,

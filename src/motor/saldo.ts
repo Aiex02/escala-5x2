@@ -9,18 +9,23 @@
 import type { Semana } from "./calendario";
 import { type DataISO, diaDaSemana } from "./data";
 import { minutosTrabalhados } from "./hora";
-import { type Alocacao, contemDia, type FuncionarioPlano, indicesDias, minutosDaAlocacao, type Turno } from "./modelo";
+import { type Alocacao, contemDia, type FuncionarioPlano, indicesDias, minutosDaAlocacao, minutosDoTurnoPara, type Turno } from "./modelo";
 import { diasTrabalhoMax, type LimitesSemana, limiteDoFuncionario } from "./regime";
 
 /**
  * Jornada normal da equipe: a do turno (entre os que cabem na jornada diária máxima) que
  * funciona mais dias na semana; no empate, a mais longa. Um turno curto de um dia só não
- * muda a referência. `null` se nenhum turno serve.
+ * muda a referência. `null` se nenhum turno serve. Com `funcionario`, as jornadas são medidas
+ * com a hora não trabalhada dele (almoço próprio) no lugar do intervalo da loja.
  */
-export function jornadaDeReferencia(turnos: readonly Turno[], jornadaDiariaMaxMin: number): number | null {
+export function jornadaDeReferencia(
+  turnos: readonly Turno[],
+  jornadaDiariaMaxMin: number,
+  funcionario?: Pick<FuncionarioPlano, "horasNaoTrabalhadasMin">,
+): number | null {
   let melhor: { dias: number; minutos: number } | null = null;
   for (const t of turnos) {
-    const minutos = minutosTrabalhados(t.horario);
+    const minutos = funcionario === undefined ? minutosTrabalhados(t.horario) : minutosDoTurnoPara(funcionario, t);
     if (minutos <= 0 || minutos > jornadaDiariaMaxMin) continue;
     const dias = indicesDias(t.dias).length;
     if (melhor === null || dias > melhor.dias || (dias === melhor.dias && minutos >= melhor.minutos)) {
@@ -33,12 +38,18 @@ export function jornadaDeReferencia(turnos: readonly Turno[], jornadaDiariaMaxMi
 /**
  * Jornada da semana pelas jornadas que a pessoa fez: a duração normal do turno (sem
  * compensação) mais frequente; no empate, a mais longa. `null` sem jornadas na semana.
+ * Com `funcionario`, a duração normal do turno já desconta a hora não trabalhada dele.
  */
-export function jornadaDaSemana(alocacoes: readonly Alocacao[], turnosPorId: ReadonlyMap<string, Turno>): number | null {
+export function jornadaDaSemana(
+  alocacoes: readonly Alocacao[],
+  turnosPorId: ReadonlyMap<string, Turno>,
+  funcionario?: Pick<FuncionarioPlano, "horasNaoTrabalhadasMin">,
+): number | null {
   const contagem = new Map<number, number>();
   for (const a of alocacoes) {
     const turno = turnosPorId.get(a.turnoId);
-    const minutos = turno ? minutosTrabalhados(turno.horario) : minutosDaAlocacao(a);
+    const doTurno = turno === undefined ? 0 : funcionario === undefined ? minutosTrabalhados(turno.horario) : minutosDoTurnoPara(funcionario, turno);
+    const minutos = turno && doTurno > 0 ? doTurno : minutosDaAlocacao(a);
     contagem.set(minutos, (contagem.get(minutos) ?? 0) + 1);
   }
   let melhor: { minutos: number; n: number } | null = null;

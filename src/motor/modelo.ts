@@ -5,7 +5,7 @@ import type { DataISO } from "./data";
 import { diaDaSemana } from "./data";
 import { ErroMotor } from "./erros";
 import type { Periodo } from "./funcionamento";
-import { formatarMinutos, type Horario, MINUTOS_DIA, minutosTrabalhados, duracaoTotal } from "./hora";
+import { formatarMinutos, type Horario, MINUTOS_DIA, minutosTrabalhados, duracaoTotal, tentarCriarHorario } from "./hora";
 
 // ---------------------------------------------------------------------------
 // Regras de carga
@@ -230,6 +230,12 @@ export interface FuncionarioPlano {
   nome: string;
   /** Carga contratual individual; o teto efetivo é o menor entre ela e o limite da semana. */
   cargaSemanalMin?: number;
+  /**
+   * Hora não trabalhada da pessoa (almoço / intervalo próprio), em minutos. Quando informada,
+   * vale no lugar do intervalo do turno só para ela e é descontada das horas do dia.
+   * Ausente = segue o intervalo do funcionamento da loja.
+   */
+  horasNaoTrabalhadasMin?: number;
   /** Ausências justificadas (férias, atestados): não trabalha e a jornada do dia é abonada. */
   indisponivel: Set<DataISO>;
   /** Faltas (não justificadas): não trabalha, mas as horas do dia continuam previstas (fica devendo). */
@@ -247,6 +253,44 @@ export interface FuncionarioPlano {
 /** Pode ser escalado no dia (sem ausência nem falta). */
 export function disponivelEm(f: Pick<FuncionarioPlano, "indisponivel" | "faltas">, data: DataISO): boolean {
   return !f.indisponivel.has(data) && !f.faltas.has(data);
+}
+
+// ---------------------------------------------------------------------------
+// Hora não trabalhada (almoço próprio do funcionário)
+// ---------------------------------------------------------------------------
+
+/** Qualquer cadastro que carregue a hora não trabalhada (motor, dimensionamento ou linha do banco). */
+export type ComHoraNaoTrabalhada = { horasNaoTrabalhadasMin?: number | null };
+
+/** A pessoa tem hora não trabalhada própria (vale no lugar do intervalo da loja)? */
+export function temHoraNaoTrabalhada(f: ComHoraNaoTrabalhada | null | undefined): boolean {
+  const v = f?.horasNaoTrabalhadasMin;
+  return v !== undefined && v !== null && Number.isInteger(v) && v >= 0;
+}
+
+/**
+ * Intervalo que vale para a pessoa num horário: a hora não trabalhada dela, se informada;
+ * senão o intervalo do turno (padrão da loja).
+ */
+export function intervaloDoFuncionario(f: ComHoraNaoTrabalhada | null | undefined, intervaloDoTurnoMin: number): number {
+  return temHoraNaoTrabalhada(f) ? (f?.horasNaoTrabalhadasMin as number) : intervaloDoTurnoMin;
+}
+
+/**
+ * O horário do turno como a pessoa o cumpre: mesma entrada e saída, com a hora não trabalhada
+ * dela no lugar do intervalo da loja. `null` quando o almoço dela não cabe na jornada (aí o
+ * turno não serve para essa pessoa).
+ */
+export function horarioDoFuncionario(f: ComHoraNaoTrabalhada | null | undefined, horario: Horario): Horario | null {
+  const intervalo = intervaloDoFuncionario(f, horario.intervaloMin);
+  if (intervalo === horario.intervaloMin) return horario;
+  return tentarCriarHorario(horario.inicioMin, horario.fimMin, intervalo);
+}
+
+/** Minutos que a pessoa trabalha num turno (já descontada a hora não trabalhada dela). 0 se o turno não serve. */
+export function minutosDoTurnoPara(f: ComHoraNaoTrabalhada | null | undefined, turno: Pick<Turno, "horario">): number {
+  const h = horarioDoFuncionario(f, turno.horario);
+  return h === null ? 0 : minutosTrabalhados(h);
 }
 
 /** Mínimo de pessoas de uma função em cada turno de cada dia. */

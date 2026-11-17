@@ -123,7 +123,14 @@ export function SecaoFuncionamento({ config }: { config: ConfiguracaoDto }) {
     }
   }, [erroJanelas, regrasMotor, janelas, jornadaMin, intervaloMin, config.regime, config.publicacao]);
 
-  const previaTurnos = useMemo(() => colorirTurnosGerados(analise.gerados, config.turnos), [analise.gerados, config.turnos]);
+  // Turnos editados à mão são preservados: nem aparecem na prévia nem são recriados.
+  const protegidos = config.turnos.filter((t) => t.personalizado).length;
+  const previaTurnos = useMemo(() => {
+    const automaticos = config.turnos.filter((t) => !t.personalizado);
+    const cobertos = new Set(config.turnos.filter((t) => t.personalizado).map((t) => `${t.inicioMin}|${t.fimMin}|${t.intervaloMin}`));
+    const gerados = analise.gerados.filter((g) => !cobertos.has(`${g.horario.inicioMin}|${g.horario.fimMin}|${g.horario.intervaloMin}`));
+    return colorirTurnosGerados(gerados, automaticos);
+  }, [analise.gerados, config.turnos]);
   const sugestao = intervaloPadrao(jornadaMin);
 
   function salvar() {
@@ -311,14 +318,8 @@ export function SecaoFuncionamento({ config }: { config: ConfiguracaoDto }) {
         )}
         <p className="text-xs text-texto-suave">
           Ao salvar, turnos com o mesmo horário continuam (com cor e efetivo mínimo); os que deixam de existir são arquivados se já
-          têm escala gerada, ou excluídos.
-        </p>
-        <p role="note" className="flex gap-2 text-xs text-atencao">
-          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-          <span>
-            Ajustes manuais feitos na aba Turnos se perdem: turnos criados à mão ou com horário alterado são excluídos (ou arquivados),
-            e nome e dias dos demais voltam ao calculado.
-          </span>
+          têm escala gerada, ou excluídos. Os turnos editados à mão na aba Turnos ficam como estão
+          {protegidos > 0 ? ` (${protegidos} ${protegidos === 1 ? "turno protegido" : "turnos protegidos"})` : ""}.
         </p>
       </section>
 

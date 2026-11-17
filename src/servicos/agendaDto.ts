@@ -56,6 +56,8 @@ export type LinhaFuncionarioDto = {
   ativo: boolean;
   /** Uma célula por dia do mês (mesma ordem de `AgendaMesDto.dias`). */
   celulas: CelulaDto[];
+  /** Hora não trabalhada da pessoa (almoço próprio) em minutos; `null` = segue o intervalo da loja. */
+  horasNaoTrabalhadasMin: number | null;
   horasMesMin: number;
   saldoMesMin: number;
   saldoAnteriorMin: number;

@@ -92,6 +92,10 @@ model Turno {
   /// Máscara de bits dos dias (bit 0 = segunda … bit 6 = domingo)
   diasSemana    Int     @map("dias_semana")
   arquivado     Boolean @default(false)
+  /// Editado ou criado à mão: "Salvar funcionamento" não mexe mais neste turno
+  personalizado Boolean @default(false)
+  /// Chave "inicio|fim|intervalo" do horário automático que este turno substitui (não é recriado)
+  origemHorario String? @map("origem_horario")
 
   cliente   Cliente    @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   alocacoes Alocacao[]
@@ -113,7 +117,8 @@ model Funcionario {
   ativo                  Boolean  @default(true)
   /// Fora das regras de jornada da lei (superior + alta remuneração, ou empregado público)
   isentoEc141            Boolean  @default(false) @map("isento_ec141")
-  /// Horas não trabalhadas informadas pelo gestor (minutos); só informativo, não entra no motor
+  /// Hora não trabalhada: o almoço / intervalo desta pessoa (minutos). Vale no lugar do
+  /// intervalo do funcionamento só para ela e é descontada das horas do dia. Vazio = o da loja
   horasNaoTrabalhadasMin Int?     @map("horas_nao_trabalhadas_min")
 
   cliente   Cliente    @relation(fields: [clienteId], references: [id], onDelete: Cascade)

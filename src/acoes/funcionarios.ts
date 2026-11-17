@@ -47,7 +47,7 @@ const esquemaFuncionario = z.object({
     .number({ error: "Horas não trabalhadas inválidas." })
     .int("Horas não trabalhadas inválidas.")
     .min(0, "As horas não trabalhadas não podem ser negativas.")
-    .max(744 * 60, "As horas não trabalhadas devem ser de no máximo 744h.")
+    .max(12 * 60, "As horas não trabalhadas devem ser de no máximo 12h.")
     .nullable(),
 });
 

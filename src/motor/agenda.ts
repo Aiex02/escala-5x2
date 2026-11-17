@@ -53,13 +53,14 @@ export interface EntradaResumoSemanal {
 export function resumoSemanal(entrada: EntradaResumoSemanal): LinhaResumoSemanal[] {
   const { semana, turnos, regras, regime, alocacoes } = entrada;
   const turnosPorId = new Map(turnos.map((t) => [t.id, t]));
-  const referencia = jornadaDeReferencia(turnos, regras.jornadaDiariaMaxMin);
   return entrada.funcionarios.map((f) => {
     const daSemana = alocacoes.filter((a) => a.funcionarioId === f.id && semana.contem(a.data));
     const feitoMin = daSemana.reduce((s, a) => s + minutosDaAlocacao(a), 0);
     const limites = limitesDoFuncionarioNaSemana(f, regras, regime, semana);
     const gravado = entrada.previstosGravados?.get(f.id);
-    const jornada = jornadaDaSemana(daSemana, turnosPorId) ?? referencia ?? 0;
+    // A jornada de referência é medida com a hora não trabalhada da própria pessoa.
+    const referencia = jornadaDeReferencia(turnos, regras.jornadaDiariaMaxMin, f);
+    const jornada = jornadaDaSemana(daSemana, turnosPorId, f) ?? referencia ?? 0;
     const previstoMin = gravado ?? previstoDaSemana(f, turnos, limites, semana, jornada, { diasFechados: entrada.diasFechados });
     const limiteMin = limiteDoFuncionario(f, limites);
     const extraDiaria = daSemana.filter((a) => a.origem !== "compensacao").reduce((s, a) => s + minutosExtras(a, regras), 0);

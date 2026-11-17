@@ -25,8 +25,8 @@ export async function gerarModeloPlanilha(): Promise<Uint8Array> {
     ["matricula", "nome", "cargo", "secao", "ctps", "preferencia", "carga_semanal", "horas_nao_trabalhadas"],
     [14, 32, 18, 16, 14, 16, 16, 24],
   );
-  func.addRow(["1001", "Ana Exemplo", "Atendente", "Loja", "123456", "Manhã", 36, 4]);
-  func.addRow(["1002", "Bruno Exemplo", "Barista", "Loja", "234567", "Tarde", "37,5", "4,5"]);
+  func.addRow(["1001", "Ana Exemplo", "Atendente", "Loja", "123456", "Manhã", 36, 1]);
+  func.addRow(["1002", "Bruno Exemplo", "Barista", "Loja", "234567", "Tarde", "37,5", "1,5"]);
   func.addRow(["1003", "Carla Exemplo", "Cozinheira", "Cozinha", "", "", "", ""]);
   const notas: [string, string][] = [
     ["A1", "Obrigatória. Identificador único do funcionário."],
@@ -34,7 +34,10 @@ export async function gerarModeloPlanilha(): Promise<Uint8Array> {
     ["C1", "Opcional. A escala é agrupada por cargo (função)."],
     ["F1", "Opcional: Manhã, Tarde ou Noite. Vazio = sem preferência."],
     ["G1", "Opcional. Horas por semana (36, 37,5 ou 36h)."],
-    ["H1", `Opcional. Horas não trabalhadas, digitadas pelo gestor (4, 4,5 ou 4h; de 0 a ${HORAS_NAO_TRABALHADAS_MAX}). Vazio = mantém o valor já cadastrado.`],
+    [
+      "H1",
+      `Opcional. Horas não trabalhadas: o almoço / intervalo da pessoa (1, 1,5 ou 2h; de 0 a ${HORAS_NAO_TRABALHADAS_MAX}). Vale no lugar do intervalo do funcionamento só para ela. Vazio = mantém o valor já cadastrado.`,
+    ],
   ];
   for (const [endereco, texto] of notas) func.getCell(endereco).note = texto;
   for (let l = 2; l <= 500; l++) {

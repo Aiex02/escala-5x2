@@ -13,7 +13,9 @@ import {
   type FuncaoMinima,
   HORA_EXTRA_DIARIA_PADRAO_MIN,
   indicesDias,
+  minutosDoTurnoPara,
   type RegrasCarga,
+  temHoraNaoTrabalhada,
   type Turno,
 } from "./modelo";
 import { diasTrabalhoMax, type EtapaRegime, limiteDoFuncionario, limitesDaSemana, type LimitesSemana } from "./regime";
@@ -26,6 +28,8 @@ export interface PessoaDimensionamento {
   ativo: boolean;
   /** Fora do regime da EC 141 (só regras da empresa). */
   isentoRegime?: boolean;
+  /** Hora não trabalhada própria (almoço da pessoa), em minutos; muda a jornada dela. */
+  horasNaoTrabalhadasMin?: number | null;
 }
 
 export interface EntradaDimensionamento {
@@ -79,14 +83,19 @@ export interface Dimensionamento {
 
 const MARGEM_PADRAO_PCT = 8;
 
-/** Jornada típica dos turnos (média ponderada pelos dias abertos), base da capacidade. */
-function jornadaTipica(turnos: readonly Turno[], regras: RegrasCarga): number {
-  if (regras.jornadaContratualMin && regras.jornadaContratualMin > 0) return regras.jornadaContratualMin;
+/**
+ * Jornada típica dos turnos (média ponderada pelos dias abertos), base da capacidade. Com
+ * `pessoa`, mede os turnos com a hora não trabalhada dela: quem tem almoço próprio cumpre
+ * jornadas de outro tamanho, e a capacidade semanal dela muda junto.
+ */
+function jornadaTipica(turnos: readonly Turno[], regras: RegrasCarga, pessoa?: PessoaDimensionamento): number {
+  const propria = temHoraNaoTrabalhada(pessoa);
+  if (!propria && regras.jornadaContratualMin && regras.jornadaContratualMin > 0) return regras.jornadaContratualMin;
   let soma = 0;
   let dias = 0;
   for (const t of turnos) {
     const n = indicesDias(t.dias).length;
-    soma += minutosTrabalhados(t.horario) * n;
+    soma += (propria ? minutosDoTurnoPara(pessoa, t) : minutosTrabalhados(t.horario)) * n;
     dias += n;
   }
   return dias > 0 ? Math.round(soma / dias) : regras.jornadaDiariaMaxMin;
@@ -116,6 +125,16 @@ export function dimensionar(entrada: EntradaDimensionamento): Dimensionamento {
   const limites = limitesDaSemana(entrada.regras, entrada.regime, semana);
   const limitesEmpresa = limitesDaSemana(entrada.regras, [], semana);
   const jornadaMin = jornadaTipica(entrada.turnos, entrada.regras);
+  // Jornada de cada pessoa: quem tem hora não trabalhada própria tem a sua (cache por id).
+  const jornadaPorPessoa = new Map<string, number>();
+  const jornadaDe = (p: PessoaDimensionamento): number => {
+    if (!temHoraNaoTrabalhada(p)) return jornadaMin;
+    const cacheada = jornadaPorPessoa.get(p.id);
+    if (cacheada !== undefined) return cacheada;
+    const propria = Math.max(1, jornadaTipica(entrada.turnos, entrada.regras, p));
+    jornadaPorPessoa.set(p.id, propria);
+    return propria;
+  };
   const extraDiaMax = entrada.regras.permitirHoraExtra === false ? 0 : (entrada.regras.horaExtraDiariaMaxMin ?? HORA_EXTRA_DIARIA_PADRAO_MIN);
   const minimoPadrao = entrada.minimoPadrao ?? 0;
   const ativos = entrada.funcionarios.filter((f) => f.ativo);
@@ -133,13 +152,13 @@ export function dimensionar(entrada: EntradaDimensionamento): Dimensionamento {
     demandaTurnos: number,
     demandaHoras: number,
   ): LinhaDimensionamento => {
-    const capBruta = pessoas.reduce((s, p) => s + turnosPorSemana(p.cargaSemanalMin, p.isentoRegime ? limitesEmpresa : limites, jornadaMin), 0);
+    const capBruta = pessoas.reduce((s, p) => s + turnosPorSemana(p.cargaSemanalMin, p.isentoRegime ? limitesEmpresa : limites, jornadaDe(p)), 0);
     const capacidade = capBruta * fator;
     const porPessoaNova = turnosPorSemana(undefined, limites, jornadaMin) * fator;
     const deficitTurnos = Math.max(0, demandaTurnos - capacidade);
     const faltam = deficitTurnos > 0 && porPessoaNova > 0 ? Math.ceil(deficitTurnos / porPessoaNova) : 0;
     const horasExtras = Math.round(deficitTurnos * jornadaMin);
-    const extraPossivel = pessoas.reduce((s, p) => s + turnosPorSemana(p.cargaSemanalMin, limites, jornadaMin) * extraDiaMax, 0);
+    const extraPossivel = pessoas.reduce((s, p) => s + turnosPorSemana(p.cargaSemanalMin, limites, jornadaDe(p)) * extraDiaMax, 0);
     const cobrivel = horasExtras === 0 || horasExtras <= extraPossivel;
     const capTexto = `${Math.floor(capacidade)} de ${demandaTurnos} turnos por semana`;
     const mensagem =

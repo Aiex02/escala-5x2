@@ -39,7 +39,7 @@ function lerHoras(texto: string): number | null | undefined {
   return Number.isFinite(n) ? Math.round(n * 60) : undefined;
 }
 
-const HORAS_NAO_TRABALHADAS_MAX = 744;
+const HORAS_NAO_TRABALHADAS_MAX = 12;
 
 function horasParaTexto(min: number | null): string {
   return min === null ? "" : String(min / 60).replace(".", ",");
@@ -178,7 +178,8 @@ function Formulario({
             aria-describedby="f-nao-trabalhadas-dica"
           />
           <p id="f-nao-trabalhadas-dica" className="text-xs text-texto-suave">
-            Ex.: 4, 4,5 ou 4h (até {HORAS_NAO_TRABALHADAS_MAX}h). Só informativo; não altera a escala.
+            O almoço / intervalo desta pessoa: ex. 1, 1,5 ou 2h (até {HORAS_NAO_TRABALHADAS_MAX}h). Vale no lugar do intervalo do
+            funcionamento só para ela e é descontado das horas do dia. Vazio = segue o intervalo da loja.
           </p>
         </div>
       </div>

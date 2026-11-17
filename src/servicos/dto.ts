@@ -17,6 +17,8 @@ export interface TurnoDto {
   cor: string;
   /** Máscara de bits (bit 0 = segunda ... bit 6 = domingo). */
   diasSemana: number;
+  /** Criado ou editado à mão: "Salvar funcionamento" não mexe mais neste turno. */
+  personalizado: boolean;
 }
 
 export interface RegrasEmpresaDto {

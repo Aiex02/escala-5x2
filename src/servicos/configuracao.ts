@@ -26,14 +26,42 @@ type Transacao = Prisma.TransactionClient;
 
 const chaveHorario = (inicio: number, fim: number, intervalo: number) => `${inicio}|${fim}|${intervalo}`;
 
+/** Nome livre entre `usados` (sem diferenciar maiúsculas): "Manhã", "Manhã 2", "Manhã 3"... */
+function nomeSemColisao(nome: string, usados: Set<string>): string {
+  const livre = (candidato: string) => !usados.has(candidato.toLowerCase());
+  if (livre(nome)) return nome;
+  for (let n = 2; n < 100; n++) {
+    const candidato = `${nome} ${n}`;
+    if (livre(candidato)) return candidato;
+  }
+  return `${nome} ${Date.now().toString(36)}`;
+}
+
 /**
- * Faz os turnos do cliente refletirem os `gerados`:
+ * Faz os turnos automáticos do cliente refletirem os `gerados`:
  * - turnos com o mesmo horário (início/fim/intervalo) continuam (id, cor e efetivo mínimo ficam);
  * - os que deixam de existir são arquivados (se têm alocações) ou excluídos;
  * - os novos ganham a próxima cor livre.
+ *
+ * Turnos personalizados (criados ou editados à mão em Configurações > Turnos) ficam intactos:
+ * não são excluídos, arquivados nem alterados, e o turno automático cujo horário um
+ * personalizado já substitui (`origemHorario`) não é recriado. Nome de turno gerado que
+ * colidiria com um personalizado ganha sufixo ("Manhã 2").
  */
 export async function sincronizarTurnos(tx: Transacao, clienteId: string, gerados: readonly TurnoGerado[]): Promise<void> {
-  const existentes = await tx.turno.findMany({ where: { clienteId }, orderBy: { ordem: "asc" } });
+  const todos = await tx.turno.findMany({ where: { clienteId }, orderBy: { ordem: "asc" } });
+  const personalizados = todos.filter((t) => t.personalizado);
+  const existentes = todos.filter((t) => !t.personalizado);
+
+  // Horários que os personalizados já cobrem: o automático que cada um substituiu e o horário
+  // que ele tem hoje. Nenhum dos dois é gerado de novo.
+  const cobertos = new Set<string>();
+  for (const t of personalizados) {
+    if (t.arquivado) continue;
+    if (t.origemHorario) cobertos.add(t.origemHorario);
+    cobertos.add(chaveHorario(t.inicioMin, t.fimMin, t.intervaloMin));
+  }
+  const aplicar = gerados.filter((g) => !cobertos.has(chaveHorario(g.horario.inicioMin, g.horario.fimMin, g.horario.intervaloMin)));
   const livres = new Map<string, (typeof existentes)[number][]>();
   // Turnos ativos têm preferência sobre arquivados na hora de casar horários iguais.
   for (const t of [...existentes].sort((a, b) => Number(a.arquivado) - Number(b.arquivado))) {
@@ -41,14 +69,19 @@ export async function sincronizarTurnos(tx: Transacao, clienteId: string, gerado
     livres.set(chave, [...(livres.get(chave) ?? []), t]);
   }
 
-  const casados: { existenteId: string; gerado: TurnoGerado; ordem: number }[] = [];
-  const novos: { gerado: TurnoGerado; ordem: number }[] = [];
-  gerados.forEach((gerado, ordem) => {
+  const casados: { existenteId: string; gerado: TurnoGerado; ordem: number; nome: string }[] = [];
+  const novos: { gerado: TurnoGerado; ordem: number; nome: string }[] = [];
+  // Nomes que os turnos gerados não podem tomar: os dos personalizados (o nome é único por
+  // cliente, inclusive para os arquivados).
+  const nomesTomados = new Set(personalizados.map((t) => t.nome.toLowerCase()));
+  aplicar.forEach((gerado, ordem) => {
     const h = gerado.horario;
+    const nome = nomeSemColisao(gerado.nome, nomesTomados);
+    nomesTomados.add(nome.toLowerCase());
     const fila = livres.get(chaveHorario(h.inicioMin, h.fimMin, h.intervaloMin));
     const achado = fila?.shift();
-    if (achado) casados.push({ existenteId: achado.id, gerado, ordem });
-    else novos.push({ gerado, ordem });
+    if (achado) casados.push({ existenteId: achado.id, gerado, ordem, nome });
+    else novos.push({ gerado, ordem, nome });
   });
 
   const idsCasados = new Set(casados.map((c) => c.existenteId));
@@ -73,7 +106,7 @@ export async function sincronizarTurnos(tx: Transacao, clienteId: string, gerado
   for (const c of casados) {
     await tx.turno.update({
       where: { id: c.existenteId },
-      data: { nome: c.gerado.nome, ordem: c.ordem, diasSemana: c.gerado.dias, arquivado: false },
+      data: { nome: c.nome, ordem: c.ordem, diasSemana: c.gerado.dias, arquivado: false },
     });
   }
 
@@ -86,7 +119,7 @@ export async function sincronizarTurnos(tx: Transacao, clienteId: string, gerado
     await tx.turno.create({
       data: {
         clienteId,
-        nome: n.gerado.nome,
+        nome: n.nome,
         inicioMin: h.inicioMin,
         fimMin: h.fimMin,
         intervaloMin: h.intervaloMin,
@@ -117,6 +150,7 @@ function turnoParaDto(t: {
   ordem: number;
   cor: string;
   diasSemana: number;
+  personalizado: boolean;
 }): TurnoDto {
   return {
     id: t.id,
@@ -128,6 +162,7 @@ function turnoParaDto(t: {
     ordem: t.ordem,
     cor: t.cor,
     diasSemana: t.diasSemana,
+    personalizado: t.personalizado,
   };
 }
 
@@ -322,16 +357,28 @@ const camposTurno = (nome: string, dados: DadosTurno) => ({
 /**
  * Ajusta todos os campos de um turno ativo, preservando o identificador e o histórico: as
  * alocações já geradas guardam o próprio horário e não mudam.
+ *
+ * Editar à mão marca o turno como personalizado: "Salvar funcionamento" passa a não mexer
+ * nele. Na primeira edição de um turno automático, o horário que ele tinha fica guardado em
+ * `origemHorario`, para o sincronizador não recriar o turno que este substituiu.
  */
 export async function salvarTurno(clienteId: string, turnoId: string, dados: DadosTurno): Promise<void> {
   const nome = validarTurno(dados);
-  const turno = await prisma.turno.findFirst({ where: { id: turnoId, clienteId, arquivado: false }, select: { id: true } });
+  const turno = await prisma.turno.findFirst({
+    where: { id: turnoId, clienteId, arquivado: false },
+    select: { id: true, inicioMin: true, fimMin: true, intervaloMin: true, personalizado: true, origemHorario: true },
+  });
   if (!turno) throw new ErroCadastro("Turno não encontrado.");
   await garantirNomeLivre(clienteId, nome, turnoId);
-  await prisma.turno.update({ where: { id: turnoId }, data: camposTurno(nome, dados) }).catch((e: unknown) => nomeDuplicado(e, nome));
+  const origemHorario = turno.personalizado
+    ? turno.origemHorario
+    : chaveHorario(turno.inicioMin, turno.fimMin, turno.intervaloMin);
+  await prisma.turno
+    .update({ where: { id: turnoId }, data: { ...camposTurno(nome, dados), personalizado: true, origemHorario } })
+    .catch((e: unknown) => nomeDuplicado(e, nome));
 }
 
-/** Cria um turno manual no fim da lista. Devolve o id. */
+/** Cria um turno manual no fim da lista. Nasce personalizado (protegido). Devolve o id. */
 export async function criarTurno(clienteId: string, dados: DadosTurno): Promise<{ id: string }> {
   const nome = validarTurno(dados);
   const cliente = await prisma.cliente.findUnique({ where: { id: clienteId }, select: { id: true } });
@@ -340,7 +387,7 @@ export async function criarTurno(clienteId: string, dados: DadosTurno): Promise<
   const ultimo = await prisma.turno.aggregate({ where: { clienteId }, _max: { ordem: true } });
   return prisma.turno
     .create({
-      data: { clienteId, ordem: (ultimo._max.ordem ?? -1) + 1, ...camposTurno(nome, dados) },
+      data: { clienteId, ordem: (ultimo._max.ordem ?? -1) + 1, personalizado: true, ...camposTurno(nome, dados) },
       select: { id: true },
     })
     .catch((e: unknown) => nomeDuplicado(e, nome));
