@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight, Folder, FolderOpen, Plus } from "lucide-react";
+import { ChevronRight, Folder, FolderOpen, FolderPlus, Plus } from "lucide-react";
 import { nomeMes } from "@/lib/datas";
 import { cn } from "@/lib/utils";
+import { proximoAnoACriar } from "./proximoAno";
 
 type Props = {
   clienteId: string;
@@ -16,7 +17,8 @@ type Props = {
 
 /**
  * Árvore de escalas: cada ano é uma pasta (do mais antigo para o mais novo) que abre e
- * fecha; dentro, os meses gerados em ordem e um atalho para gerar o próximo mês.
+ * fecha; dentro, os meses gerados em ordem e um atalho para gerar o próximo mês. No fim da
+ * árvore, quando o último ano entra nos meses finais, um botão cria a escala do ano seguinte.
  */
 export function AnosEMeses({ clienteId, meses, hoje, aoNavegar }: Props) {
   const caminho = usePathname();
@@ -27,6 +29,7 @@ export function AnosEMeses({ clienteId, meses, hoje, aoNavegar }: Props) {
   const geradosPorAno = new Map<number, number[]>();
   for (const { ano, mes } of meses) geradosPorAno.set(ano, [...(geradosPorAno.get(ano) ?? []), mes]);
   const anos = [...new Set([...geradosPorAno.keys(), hoje.ano])].sort((a, b) => a - b);
+  const proximoAno = proximoAnoACriar(meses, hoje);
 
   // Abertos por padrão: o ano da rota e o ano atual.
   const [fechados, setFechados] = useState<Set<number>>(new Set());
@@ -117,6 +120,24 @@ export function AnosEMeses({ clienteId, meses, hoje, aoNavegar }: Props) {
           </div>
         );
       })}
+      {proximoAno !== null && (
+        <Link
+          href={`/clientes/${clienteId}/escala/${proximoAno}/1`}
+          onClick={aoNavegar}
+          aria-current={abertoAno === proximoAno ? "page" : undefined}
+          className={cn(
+            "mt-1 flex items-center gap-2 rounded-md border border-dashed px-2.5 py-1.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-acento focus-visible:outline-none",
+            abertoAno === proximoAno
+              ? "border-acento/50 bg-acento/12 text-acento"
+              : "border-borda text-texto-suave hover:bg-accent hover:text-texto",
+          )}
+        >
+          <FolderPlus className="size-4 shrink-0" aria-hidden />
+          <span className="flex-1">
+            Criar escala de <span className="font-mono tracking-wide">{proximoAno}</span>
+          </span>
+        </Link>
+      )}
     </nav>
   );
 }
